@@ -1,0 +1,42 @@
+@page "/videos"
+@inject HttpClient Http
+
+<h3>SharePoint Videos</h3>
+
+@if (videos == null)
+{
+    <p>Loading...</p>
+}
+else if (videos.Count == 0)
+{
+    <p>No videos found.</p>
+}
+else
+{
+    <ul style="list-style:none;padding:0;">
+    @foreach (var video in videos)
+    {
+        <li style="margin-bottom:30px;">
+            <video width="480" height="320" controls>
+                <source src="@video.url" type="video/mp4" />
+                Your browser does not support the video tag.
+            </video>
+            <div>@video.name</div>
+        </li>
+    }
+    </ul>
+}
+
+@code {
+    public class Video
+    {
+        public string name { get; set; }
+        public string url { get; set; }
+    }
+    List<Video> videos;
+
+    protected override async Task OnInitializedAsync()
+    {
+        videos = await Http.GetFromJsonAsync<List<Video>>("/api/videos");
+    }
+}
