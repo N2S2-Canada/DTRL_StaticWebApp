@@ -30,10 +30,10 @@ else
 @code {
     public class Video
     {
-        public string name { get; set; }
-        public string url { get; set; }
+        public string? name { get; set; }
+        public string? url { get; set; }
     }
-    List<Video> videos;
+    List<Video>? videos;
 
     protected override async Task OnInitializedAsync()
     {

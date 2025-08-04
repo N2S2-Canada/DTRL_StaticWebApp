@@ -1,9 +1,12 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36327.8 d17.14
+VisualStudioVersion = 17.14.36327.8
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client", "Client\Client.csproj", "{FE18B9D3-017E-45AD-BAB3-220C294A1868}"
+	ProjectSection(ProjectDependencies) = postProject
+		{6B386077-B761-42EC-B67A-28D4B2A3DC6D} = {6B386077-B761-42EC-B67A-28D4B2A3DC6D}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "API", "API\API.csproj", "{6B386077-B761-42EC-B67A-28D4B2A3DC6D}"
 EndProject

@@ -2,8 +2,10 @@
   "profiles": {
     "API": {
       "commandName": "Project",
-      "commandLineArgs": "--port 7050",
-      "launchBrowser": false
+      "applicationUrl": "https://localhost:7079;http://localhost:7071",
+      "environmentVariables": {
+       "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+       "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated"
+      }
     }
-  }
 }
