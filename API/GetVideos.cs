@@ -21,7 +21,7 @@ namespace API
 
         [Function("GetVideos")]
         public async Task<HttpResponseData> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequestData req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route ="videos")] HttpRequestData req,
             FunctionContext context)
         {
             // Retrieve environment variables

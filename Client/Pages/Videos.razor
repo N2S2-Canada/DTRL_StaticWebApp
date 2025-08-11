@@ -37,6 +37,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        videos = await Http.GetFromJsonAsync<List<Video>>("/api/GetVideos") ?? new List<Video>();
+        videos = await Http.GetFromJsonAsync<List<Video>>("/api/videos") ?? new List<Video>();
     }
 }
