@@ -31,12 +31,12 @@ else
     public class Video
     {
         public string? name { get; set; }
-        public string? url { get; set; }
+        public string?   url { get; set; }
     }
     List<Video>? videos;
 
     protected override async Task OnInitializedAsync()
     {
-        videos = await Http.GetFromJsonAsync<List<Video>>("/api/videos");
+        videos = await Http.GetFromJsonAsync<List<Video>>("/api/GetVideos") ?? new List<Video>();
     }
 }

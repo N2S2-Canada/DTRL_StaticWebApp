@@ -1,57 +1,66 @@
-using Azure.Identity;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
+using Azure.Identity;
 using Microsoft.Graph.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Threading.Tasks;
 
 namespace API
 {
-    public class GetVideosFunction
+    public class GetVideos
     {
+        private readonly ILogger _log;
+
+        public GetVideos(ILoggerFactory loggerFactory)
+        {
+            _log = loggerFactory.CreateLogger<GetVideos>();
+        }
+
         [Function("GetVideos")]
         public async Task<HttpResponseData> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "videos")] HttpRequestData req,
-            FunctionContext executionContext)
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequestData req,
+            FunctionContext context)
         {
-            var logger = executionContext.GetLogger("GetVideos");
+            // Retrieve environment variables
             var tenantId = Environment.GetEnvironmentVariable("TenantId");
             var clientId = Environment.GetEnvironmentVariable("ClientId");
             var clientSecret = Environment.GetEnvironmentVariable("ClientSecret");
             var siteId = Environment.GetEnvironmentVariable("SiteId");
             var folderPath = Environment.GetEnvironmentVariable("FolderPath");
 
-            var credential = new ClientSecretCredential(
-                tenantId,
-                clientId,
-                clientSecret
-            );
-
-            var graphClient = new GraphServiceClient(credential, new[] { "https://graph.microsoft.com/.default" });
+            var response = req.CreateResponse();
 
             try
             {
+                var credential = new ClientSecretCredential(
+                    tenantId,
+                    clientId,
+                    clientSecret
+                );
+
+                var graphClient = new GraphServiceClient(credential, new[] { "https://graph.microsoft.com/.default" });
+
                 // Get site's default drive
                 var drive = await graphClient.Sites[siteId].Drive.GetAsync();
                 if (drive == null)
                 {
-                    logger.LogError($"Drive not found for siteId: {siteId}");
-                    var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-                    return errorResponse;
+                    _log.LogError("Drive not found for siteId: {siteId}", siteId);
+                    response.StatusCode = System.Net.HttpStatusCode.InternalServerError;
+                    await response.WriteStringAsync("Drive not found.");
+                    return response;
                 }
 
                 // Get folder by path (relative to root)
                 var folder = await graphClient.Drives[drive.Id!].Root.ItemWithPath(folderPath).GetAsync();
                 if (folder == null)
                 {
-                    logger.LogError($"Folder not found at path: {folderPath}");
-                    var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-                    return errorResponse;
+                    _log.LogError("Folder not found at path: {folderPath}", folderPath);
+                    response.StatusCode = System.Net.HttpStatusCode.InternalServerError;
+                    await response.WriteStringAsync("Folder not found.");
+                    return response;
                 }
 
                 // Get files in the folder
@@ -67,15 +76,16 @@ namespace API
                             : i.WebUrl
                     });
 
-                var response = req.CreateResponse(HttpStatusCode.OK);
+                response.StatusCode = System.Net.HttpStatusCode.OK;
                 await response.WriteAsJsonAsync(videos);
                 return response;
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to fetch videos from SharePoint.");
-                var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
-                return errorResponse;
+                _log.LogError(ex, "Failed to fetch videos from SharePoint.");
+                response.StatusCode = System.Net.HttpStatusCode.InternalServerError;
+                await response.WriteStringAsync("Error fetching videos.");
+                return response;
             }
         }
     }
