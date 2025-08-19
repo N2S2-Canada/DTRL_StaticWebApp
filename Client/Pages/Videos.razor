@@ -13,30 +13,75 @@ else if (videos.Count == 0)
 }
 else
 {
-    <ul style="list-style:none;padding:0;">
-    @foreach (var video in videos)
+    @foreach (var group in videos
+            .Where(v => v.Categories.Any())
+            .GroupBy(v => v.Categories.First())
+            .OrderBy(g => g.Key))
     {
-        <li style="margin-bottom:30px;">
-            <video width="480" height="320" controls>
-                <source src="@video.url" type="video/mp4" />
-                Your browser does not support the video tag.
-            </video>
-            <div>@video.name</div>
-        </li>
+        <h4>@group.Key</h4>
+        <ul style="list-style:none;padding:0;">
+            @foreach (var video in group)
+            {
+                <li style="margin-bottom:30px;">
+                    <video width="480" height="320" controls>
+                        <source src="@video.Url" type="video/mp4" />
+                        Your browser does not support the video tag.
+                    </video>
+                    <div>@video.Name</div>
+                    <div>
+                        Categories:
+                        @foreach (var category in video.Categories)
+                        {
+                            var colors = GetCategoryColors(category ?? "");
+                            <span class="category-badge"
+                                  style="background-color:@colors.bg; color:@colors.text;">
+                                @category
+                            </span>
+                        }
+                    </div>
+                </li>
+            }
+        </ul>
     }
-    </ul>
 }
 
 @code {
-    public class Video
-    {
-        public string? name { get; set; }
-        public string?   url { get; set; }
-    }
     List<Video>? videos;
 
     protected override async Task OnInitializedAsync()
     {
         videos = await Http.GetFromJsonAsync<List<Video>>("/api/videos") ?? new List<Video>();
+    }
+
+    private readonly Dictionary<string, (string bg, string text)> CategoryColors = new()
+    {
+        { "nature", ("#d4e7f6", "#454871") },
+        { "agriculture", ("#caf0cc", "#72744c") },
+        { "industrial", ("#ffebc0", "#be751f") },
+        { "real estate", ("#fabbc3", "#a30e15") },
+        { "wedding", ("#c3f8f9", "#03787c") },
+        { "social", ("#fed5d1", "#b5410d") },
+        { "mapping", ("#caeee9", "#445348") },
+        { "inspection", ("#c3caf9", "#7658e8") },
+        { "videography", ("#d8d8ee", "#373277") },
+        { "photography", ("#80c6ff", "#004e8c") },
+        { "multi-spectra", ("#e5d2e3", "#ae5a7b") },
+        { "event", ("#e5e5e5", "#333333") },
+        { "community", ("#fffefc", "#000000") }
+    };
+
+    private (string bg, string text) GetCategoryColors(string category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+            return ("#6c757d", "white"); // fallback gray
+
+        var key = category.Trim().ToLowerInvariant();
+        if (CategoryColors.TryGetValue(key, out var colors))
+        {
+            // ensure safe values (no nulls)
+            return (colors.bg ?? "#6c757d", colors.text ?? "white");
+        }
+
+        return ("#6c757d", "white"); // unknown category fallback
     }
 }
