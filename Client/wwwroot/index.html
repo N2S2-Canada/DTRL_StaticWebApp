@@ -10,5 +10,20 @@
 <body>
     <div id="app">Loading...</div>
     <script src="_framework/blazor.webassembly.js"></script>
+
+    <script>
+        // Scroll a thumbnail into view when selected
+        window.scrollIntoViewIfNeeded = (thumbId) => {
+            const thumb = document.getElementById(thumbId);
+            if (thumb) {
+                thumb.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+            }
+        };
+
+        // Keyboard navigation for modal (Arrow keys + Escape)
+        document.addEventListener('keydown', (e) => {
+            DotNet.invokeMethodAsync('Client', 'OnKeyDown', { key: e.key });
+        });
+    </script>
 </body>
 </html>

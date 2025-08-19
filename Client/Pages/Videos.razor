@@ -1,7 +1,7 @@
 @page "/videos"
 @inject HttpClient Http
 
-<h3>SharePoint Videos</h3>
+<h1>DiverseTech Robotics Media</h1>
 
 @if (videos == null)
 {
@@ -9,48 +9,111 @@
 }
 else if (videos.Count == 0)
 {
-    <p>No videos found.</p>
+    <p>No media found.</p>
 }
 else
 {
     @foreach (var group in videos
-            .Where(v => v.Categories.Any())
-            .GroupBy(v => v.Categories.First())
-            .OrderBy(g => g.Key))
+                .Where(v => v.Categories.Any())
+                .GroupBy(v => v.Categories.First())
+                .OrderBy(g => g.Key))
     {
         <h4>@group.Key</h4>
-        <ul style="list-style:none;padding:0;">
-            @foreach (var video in group)
+        <div class="media-grid">
+            @foreach (var item in group)
             {
-                <li style="margin-bottom:30px;">
-                    <video width="480" height="320" controls>
-                        <source src="@video.Url" type="video/mp4" />
-                        Your browser does not support the video tag.
-                    </video>
-                    <div>@video.Name</div>
-                    <div>
-                        Categories:
-                        @foreach (var category in video.Categories)
-                        {
-                            var colors = GetCategoryColors(category ?? "");
-                            <span class="category-badge"
-                                  style="background-color:@colors.bg; color:@colors.text;">
-                                @category
-                            </span>
-                        }
+                <div class="media-item">
+                    @if (item.IsVideo)
+                    {
+                        <div class="media-video-container">
+                            <img src="@item.ThumbnailUrl" alt="@item.Name"
+                                 class="media-photo"
+                                 @onclick="() => ShowModal(item.Url!, true)" />
+                        </div>
+                    }
+                    else
+                    {
+                        <img class="media-photo"
+                             src="@item.Url"
+                             alt="@item.Name"
+                             @onclick="() => ShowModal(item.Url!)" />
+                    }
+
+                    <div class="media-info">
+                        <div class="media-name">@item.Name</div>
+                        <div class="media-categories">
+                            @foreach (var category in item.Categories)
+                            {
+                                var colors = GetCategoryColors(category);
+                                <span class="category-badge"
+                                      style="background-color:@colors.bg; color:@colors.text;">
+                                    @category
+                                </span>
+                            }
+                        </div>
                     </div>
-                </li>
+                </div>
             }
-        </ul>
+        </div>
     }
 }
 
+@if (modalVisible)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <span class="modal-close" @onclick="CloseModal">&times;</span>
+            @if (modalIsVideo)
+            {
+                <video controls autoplay style="max-width:100%; max-height:100%;">
+                    <source src="@modalVideoUrl" type="video/mp4" />
+                    Your browser does not support the video tag.
+                </video>
+            }
+            else
+            {
+                <img src="@modalImageUrl" alt="Enlarged photo" />
+            }
+        </div>
+    </div>
+}
+
 @code {
-    List<Video>? videos;
+    private List<Video>? videos;
+
+    private bool modalVisible = false;
+    private bool modalIsVideo = false;
+    private string modalImageUrl = "";
+    private string modalVideoUrl = "";
 
     protected override async Task OnInitializedAsync()
     {
         videos = await Http.GetFromJsonAsync<List<Video>>("/api/videos") ?? new List<Video>();
+    }
+
+    private void ShowModal(string url, bool isVideo = false)
+    {
+        modalVisible = true;
+        modalIsVideo = isVideo;
+
+        if (isVideo)
+        {
+            modalVideoUrl = url;
+            modalImageUrl = "";
+        }
+        else
+        {
+            modalImageUrl = url;
+            modalVideoUrl = "";
+        }
+    }
+
+    private void CloseModal()
+    {
+        modalVisible = false;
+        modalIsVideo = false;
+        modalImageUrl = "";
+        modalVideoUrl = "";
     }
 
     private readonly Dictionary<string, (string bg, string text)> CategoryColors = new()
@@ -73,15 +136,9 @@ else
     private (string bg, string text) GetCategoryColors(string category)
     {
         if (string.IsNullOrWhiteSpace(category))
-            return ("#6c757d", "white"); // fallback gray
+            return ("#6c757d", "white");
 
         var key = category.Trim().ToLowerInvariant();
-        if (CategoryColors.TryGetValue(key, out var colors))
-        {
-            // ensure safe values (no nulls)
-            return (colors.bg ?? "#6c757d", colors.text ?? "white");
-        }
-
-        return ("#6c757d", "white"); // unknown category fallback
+        return CategoryColors.TryGetValue(key, out var colors) ? colors : ("#6c757d", "white");
     }
 }

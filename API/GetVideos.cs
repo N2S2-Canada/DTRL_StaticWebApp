@@ -5,11 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using Microsoft.Kiota.Abstractions.Serialization;
-using SharedModels;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace API
 {
@@ -22,6 +18,22 @@ namespace API
             _logger = logger;
         }
 
+        private static string ToFriendlyName(string rawName)
+        {
+            if (string.IsNullOrWhiteSpace(rawName)) return string.Empty;
+
+            var withSpaces = rawName.Replace("_", " ").Replace("-", " ");
+            withSpaces = Regex.Replace(withSpaces, @"\b(final|draft|copy|edit|v\d+|\d{2,})\b", "", RegexOptions.IgnoreCase);
+            withSpaces = Regex.Replace(withSpaces, @"\s+", " ").Trim();
+
+            return Regex.Replace(withSpaces, @"\b\w+\b", match =>
+            {
+                var word = match.Value;
+                if (word.ToUpperInvariant() == word) return word; // preserve acronyms
+                return char.ToUpper(word[0]) + word.Substring(1).ToLower();
+            });
+        }
+
         [Function("GetVideos")]
         public async Task<HttpResponseData> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "videos")] HttpRequestData req,
@@ -31,7 +43,6 @@ namespace API
 
             try
             {
-                // Environment variables
                 var tenantId = Environment.GetEnvironmentVariable("TenantId");
                 var clientId = Environment.GetEnvironmentVariable("ClientId");
                 var clientSecret = Environment.GetEnvironmentVariable("ClientSecret");
@@ -41,7 +52,6 @@ namespace API
                 var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
                 var graphClient = new GraphServiceClient(credential, new[] { "https://graph.microsoft.com/.default" });
 
-                // Get site's default drive
                 var drive = await graphClient.Sites[siteId].Drive.GetAsync();
                 if (drive == null)
                 {
@@ -51,7 +61,6 @@ namespace API
                     return response;
                 }
 
-                // Get folder by path
                 var folder = await graphClient.Drives[drive.Id!].Root.ItemWithPath(folderPath).GetAsync();
                 if (folder == null)
                 {
@@ -61,19 +70,21 @@ namespace API
                     return response;
                 }
 
-                // Get files in folder, expand listItem
                 var items = await graphClient.Drives[drive.Id].Items[folder.Id].Children.GetAsync(rc =>
                 {
                     rc.QueryParameters.Expand = new[] { "listItem" };
                 });
 
-                var videos = (items?.Value ?? Enumerable.Empty<DriveItem>())
-                    .Where(i => i?.File != null && i?.Name != null && i.Name.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
-                    .Select(i =>
-                    {
-                        // Convert SharePoint multi-choice Category column to List<string>
-                        var categories = new List<string>();
+                var allowedVideoExtensions = new[] { ".mp4" };
+                var allowedPhotoExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif" };
 
+                var videoTasks = (items?.Value ?? Enumerable.Empty<DriveItem>())
+                    .Where(i => i?.File != null && i?.Name != null &&
+                           (allowedVideoExtensions.Contains(Path.GetExtension(i.Name), StringComparer.OrdinalIgnoreCase) ||
+                            allowedPhotoExtensions.Contains(Path.GetExtension(i.Name), StringComparer.OrdinalIgnoreCase)))
+                    .Select(async i =>
+                    {
+                        var categories = new List<string>();
                         if (i.ListItem?.Fields?.AdditionalData != null &&
                             i.ListItem.Fields.AdditionalData.TryGetValue("Category", out var categoryObj) &&
                             categoryObj != null)
@@ -82,8 +93,8 @@ namespace API
                             {
                                 case UntypedArray untypedArray:
                                     categories = (untypedArray.GetValue() ?? Enumerable.Empty<UntypedNode>())
-                                        .OfType<UntypedString>()               // Only take UntypedString nodes
-                                        .Select(x => x.GetValue() ?? string.Empty) // Correctly get string value
+                                        .OfType<UntypedString>()
+                                        .Select(x => x.GetValue() ?? string.Empty)
                                         .Where(x => !string.IsNullOrWhiteSpace(x))
                                         .ToList();
                                     break;
@@ -94,17 +105,41 @@ namespace API
                             }
                         }
 
-                        _logger.LogInformation("Video {Name} categories: {Categories}", i.Name, string.Join(", ", categories));
+                        var extension = Path.GetExtension(i.Name ?? string.Empty).ToLowerInvariant();
+                        var isVideo = allowedVideoExtensions.Contains(extension);
+
+                        // Use download URL if available
+                        string mediaUrl = i.AdditionalData != null && i.AdditionalData.TryGetValue("@microsoft.graph.downloadUrl", out var downloadUrl)
+                            ? downloadUrl?.ToString() ?? i.WebUrl
+                            : i.WebUrl;
+
+                        string thumbnailUrl = mediaUrl;
+
+                        if (isVideo)
+                        {
+                            try
+                            {
+                                var thumbs = await graphClient.Drives[drive.Id].Items[i.Id].Thumbnails.GetAsync();
+                                // Use the LARGE thumbnail if available
+                                thumbnailUrl = thumbs?.Value?.FirstOrDefault()?.Large?.Url ?? mediaUrl;
+                            }
+                            catch
+                            {
+                                thumbnailUrl = mediaUrl; // fallback
+                            }
+                        }
 
                         return new SharedModels.Video
                         {
-                            Name = i.Name,
-                            Url = i.AdditionalData != null && i.AdditionalData.TryGetValue("@microsoft.graph.downloadUrl", out var downloadUrl)
-                                ? downloadUrl?.ToString()
-                                : i.WebUrl,
-                            Categories = categories
+                            Name = ToFriendlyName(Path.GetFileNameWithoutExtension(i.Name ?? string.Empty)),
+                            Url = mediaUrl,
+                            ThumbnailUrl = thumbnailUrl,
+                            Categories = categories,
+                            IsVideo = isVideo
                         };
-                    }).ToList();
+                    });
+
+                var videos = await Task.WhenAll(videoTasks);
 
                 response.StatusCode = System.Net.HttpStatusCode.OK;
                 await response.WriteAsJsonAsync(videos);
@@ -112,9 +147,9 @@ namespace API
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to fetch videos from SharePoint.");
+                _logger.LogError(ex, "Failed to fetch videos or photos from SharePoint.");
                 response.StatusCode = System.Net.HttpStatusCode.InternalServerError;
-                await response.WriteStringAsync("Error fetching videos.");
+                await response.WriteStringAsync("Error fetching videos/photos.");
                 return response;
             }
         }
