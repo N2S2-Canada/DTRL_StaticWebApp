@@ -100,13 +100,11 @@ else
     {
         if (firstRender)
         {
-            particlesModule = await JS.InvokeAsync<IJSObjectReference>("import", "./scripts/particles.js");
+            module = await JS.InvokeAsync<IJSObjectReference>("import", "/scripts/mediaModal.js");
+            particlesModule = await JS.InvokeAsync<IJSObjectReference>("import", "/scripts/particles.js");
             await particlesModule.InvokeVoidAsync("startParticles");
-
-            module = await JS.InvokeAsync<IJSObjectReference>("import", "./scripts/mediaModal.js");
         }
     }
-
     private async Task ShowModalAsync(string url, bool isVideo = false)
     {
         modalIsVideo = isVideo;
