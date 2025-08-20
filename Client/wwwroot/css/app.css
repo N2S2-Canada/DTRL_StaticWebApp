@@ -1,4 +1,45 @@
-﻿/* General validation styles */
+﻿/* =========================
+   Futuristic Page Background
+   ========================= */
+body {
+    background: linear-gradient(135deg, #e0f7ff, #ffffff, #f0f8ff);
+    background-size: 400% 400%;
+    animation: gradientShift 20s ease infinite;
+    min-height: 100vh;
+    color: #111; /* text color for readability */
+}
+
+@keyframes gradientShift {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Subtle futuristic lines overlay */
+body::after {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: linear-gradient(to right, rgba(0,200,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,200,255,0.05) 1px, transparent 1px);
+    background-size: 50px 50px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* =========================
+   General Validation Styles
+   ========================= */
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid #26b050;
 }
@@ -15,7 +56,7 @@
 #blazor-error-ui {
     background: lightyellow;
     bottom: 0;
-    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 -1px 2px rgba(0,0,0,0.2);
     display: none;
     left: 0;
     padding: 0.6rem 1.25rem 0.7rem 1.25rem;
@@ -31,7 +72,9 @@
         top: 0.5rem;
     }
 
-/* Loading spinner */
+/* =========================
+   Loading Spinner
+   ========================= */
 .loading-progress {
     position: relative;
     display: block;
@@ -65,63 +108,21 @@
         content: var(--blazor-load-percentage-text, "Loading");
     }
 
-/* Code style */
+/* =========================
+   Code Styling
+   ========================= */
 code {
     color: #c02d76;
 }
 
-/* Category badge */
-.category-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    margin: 2px 5px 2px 0;
-    font-size: 0.85rem;
-    font-weight: 500;
-    border-radius: 15px;
-    border: 2px solid black;
-    cursor: default;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-    .category-badge:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-    }
-
-/* Media grid */
-.media-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 20px;
-}
-
-/* Media card */
-.media-item {
-    display: flex;
-    flex-direction: column;
-    background-color: #f9f9f9;
-    border-radius: 8px;
-    padding: 8px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-
-/* Video container */
-.media-video-container video {
-    width: 100%;
-    height: 180px;
-    object-fit: cover;
-    border-radius: 6px;
-    margin-bottom: 8px;
-    cursor: pointer;
-}
-
-/* Photo */
+/* =========================
+   Media Photo / Thumbnail
+   ========================= */
 .media-photo {
     width: 100%;
     height: 180px;
     object-fit: cover;
     border-radius: 6px;
-    margin-bottom: 8px;
     cursor: pointer;
     transition: transform 0.2s ease;
 }
@@ -130,97 +131,130 @@ code {
         transform: scale(1.03);
     }
 
-/* Media info */
-.media-info {
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-    justify-content: flex-end;
+/* Video thumbnail wrapper */
+.video-thumbnail-wrapper {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
 }
 
-.media-name {
-    font-weight: bold;
-    margin-bottom: 4px;
+/* Play icon overlay */
+.play-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    background-color: rgba(0,0,0,0.6);
+    border-radius: 50%;
+    color: white;
+    font-size: 2rem;
+    line-height: 60px;
+    text-align: center;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+    pointer-events: none;
+    transition: transform 0.2s ease, background-color 0.2s ease;
 }
 
-.media-categories {
-    margin-top: 5px;
+.video-thumbnail-wrapper:hover .play-icon {
+    transform: translate(-50%, -50%) scale(1.2);
+    background-color: rgba(0,0,0,0.8);
 }
+
+/* =========================
+   Card Hover & Glow
+   ========================= */
+.card-hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    border: 1px solid rgba(0,200,255,0.2);
+    background-color: rgba(255,255,255,0.85);
+}
+
+    .card-hover-lift:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 6px 20px rgba(0,200,255,0.3), 0 0 12px rgba(0,200,255,0.2);
+        border-color: rgba(0,200,255,0.5);
+    }
+
+/* =========================
+   Category Badges with Pulse
+   ========================= */
+.category-badge {
+    border: 1px solid rgba(0,0,0,0.7);
+    background-color: rgba(255,255,255,0.9);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: default;
+    border-radius: 12px;
+    transition: transform 0.1s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+    animation: badgePulse 2s ease-in-out infinite;
+}
+
+    .category-badge:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0,200,255,0.3);
+        background-color: rgba(255,255,255,1);
+        border-color: rgba(0,200,255,0.5);
+    }
+
+@keyframes badgePulse {
+    0%, 100% {
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border-color: rgba(0,0,0,0.7);
+        background-color: rgba(255,255,255,0.9);
+    }
+
+    50% {
+        box-shadow: 0 1px 6px rgba(0,200,255,0.3);
+        border-color: rgba(0,200,255,0.5);
+        background-color: rgba(255,255,255,1);
+    }
+}
+
+/* =========================
+   Modal Styling & Glow
+   ========================= */
+.modal-content {
+    background-color: rgba(255,255,255,0.95);
+    border: 2px solid rgba(0,200,255,0.3);
+    box-shadow: 0 0 20px rgba(0,200,255,0.2), 0 4px 12px rgba(0,200,255,0.25);
+}
+
+    .modal-content img,
+    .modal-content video {
+        border: 2px solid rgba(0,200,255,0.25);
+        box-shadow: 0 0 12px rgba(0,200,255,0.2);
+        border-radius: 8px;
+    }
+
+/* Close button glow */
+.modal-header .btn-close {
+    filter: drop-shadow(0 0 5px rgba(0,200,255,0.6));
+    transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+    .modal-header .btn-close:hover {
+        transform: scale(1.2);
+        filter: drop-shadow(0 0 12px rgba(0,200,255,0.8));
+    }
 
 /* Modal overlay */
-.modal-overlay {
+.modal.fade .modal-dialog {
+    transition: transform 0.3s ease-out;
+}
+
+.modal-backdrop.show {
+    background-color: rgba(0,0,0,0.45);
+    backdrop-filter: blur(4px);
+}
+#particleCanvas {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(0,0,0,0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
-    box-sizing: border-box;
-    z-index: 10000;
-}
-
-/* Modal content */
-.modal-content {
-    position: relative;
     width: 100%;
-    max-width: 80vw;  /*optional max width*/ 
-    max-height: 100%;
-    background-color: #fff;
-    padding: 20px; /* white border */
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    display: block; /* change from flex to block */
-    box-sizing: border-box;
-    /*overflow: hidden;*/ /* prevents child from exceeding modal */
-}
-
-    /* Modal media */
-    .modal-content img,
-    .modal-content video {
-        display: block;
-        max-width: 100%;
-        max-height: calc(100vh - 80px); /* viewport minus overlay + modal padding */
-        margin: 0 auto;
-        border-radius: 6px;
-    }
-
-/* Close button floating outside top-right corner dynamically */
-.modal-close {
-    position: absolute;
-    top: -1.5rem; /* Negative offset relative to modal size */
-    right: -1.5rem; /* Negative offset relative to modal size */
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #333;
-    cursor: pointer;
-    user-select: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background-color: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    z-index: 1001;
-}
-
-    .modal-close:hover {
-        transform: scale(1.2);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    }
-
-/* Optional: adjust close button for very small screens */
-@media (max-width: 500px) {
-    .modal-close {
-        width: 28px;
-        height: 28px;
-        top: -1.2rem;
-        right: -1.2rem;
-    }
+    height: 100%;
+    pointer-events: none; /* allows clicks through */
+    z-index: 0; /* behind all content */
 }

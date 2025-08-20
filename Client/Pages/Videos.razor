@@ -1,6 +1,10 @@
 @page "/videos"
 @inject HttpClient Http
+@inject IJSRuntime JS
 
+<!-- Particle background canvas -->
+<canvas id="particleCanvas"></canvas>
+<!-- Main content -->
 <h1>DiverseTech Robotics Media</h1>
 
 @if (videos == null)
@@ -14,42 +18,37 @@ else if (videos.Count == 0)
 else
 {
     @foreach (var group in videos
-                .Where(v => v.Categories.Any())
-                .GroupBy(v => v.Categories.First())
-                .OrderBy(g => g.Key))
+                            .Where(v => v.Categories.Any())
+                            .GroupBy(v => v.Categories.First())
+                            .OrderBy(g => g.Key))
     {
-        <h4>@group.Key</h4>
-        <div class="media-grid">
+        <h4 class="mt-4">@group.Key</h4>
+        <div class="row g-3">
             @foreach (var item in group)
             {
-                <div class="media-item">
-                    @if (item.IsVideo)
-                    {
-                        <div class="media-video-container">
-                            <img src="@item.ThumbnailUrl" alt="@item.Name"
-                                 class="media-photo"
-                                 @onclick="() => ShowModal(item.Url!, true)" />
-                        </div>
-                    }
-                    else
-                    {
-                        <img class="media-photo"
-                             src="@item.Url"
-                             alt="@item.Name"
-                             @onclick="() => ShowModal(item.Url!)" />
-                    }
+                <div class="col-sm-6 col-md-4 col-lg-3">
+                    <div class="card h-100 shadow-sm card-hover-lift">
+                        @if (item.IsVideo)
+                        {
+                            <div class="video-thumbnail-wrapper" @onclick="() => ShowModalAsync(item.Url!, true)">
+                                <img src="@item.ThumbnailUrl" class="card-img-top media-photo" alt="@item.Name" />
+                                <span class="play-icon">&#9658;</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <img src="@item.Url" class="card-img-top media-photo" alt="@item.Name"
+                                 @onclick="() => ShowModalAsync(item.Url!)" />
+                        }
 
-                    <div class="media-info">
-                        <div class="media-name">@item.Name</div>
-                        <div class="media-categories">
-                            @foreach (var category in item.Categories)
-                            {
-                                var colors = GetCategoryColors(category);
-                                <span class="category-badge"
-                                      style="background-color:@colors.bg; color:@colors.text;">
-                                    @category
-                                </span>
-                            }
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title mb-2">@item.Name</h5>
+                            <div class="mb-2">
+                                @foreach (var category in item.Categories)
+                                {
+                                    <span class="badge @GetCategoryClasses(category) border border-dark rounded-pill me-1 category-badge">@category</span>
+                                }
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -58,42 +57,55 @@ else
     }
 }
 
-@if (modalVisible)
-{
-    <div class="modal-overlay" @onclick="CloseModal">
-        <div class="modal-content" @onclick:stopPropagation="true">
-            <span class="modal-close" @onclick="CloseModal">&times;</span>
-            @if (modalIsVideo)
-            {
-                <video controls autoplay style="max-width:100%; max-height:100%;">
-                    <source src="@modalVideoUrl" type="video/mp4" />
-                    Your browser does not support the video tag.
-                </video>
-            }
-            else
-            {
-                <img src="@modalImageUrl" alt="Enlarged photo" />
-            }
+<!-- Bootstrap Modal -->
+<div class="modal fade" tabindex="-1" id="mediaModal" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-sm-down">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <button type="button" class="btn-close" @onclick="CloseModalAsync" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                @if (modalIsVideo)
+                {
+                    <video controls autoplay class="img-fluid">
+                        <source src="@modalVideoUrl" type="video/mp4" />
+                        Your browser does not support the video tag.
+                    </video>
+                }
+                else
+                {
+                    <img src="@modalImageUrl" alt="Enlarged media" class="img-fluid" />
+                }
+            </div>
         </div>
     </div>
-}
+</div>
 
 @code {
     private List<Video>? videos;
 
-    private bool modalVisible = false;
     private bool modalIsVideo = false;
     private string modalImageUrl = "";
     private string modalVideoUrl = "";
+    private IJSObjectReference? module;
 
     protected override async Task OnInitializedAsync()
     {
         videos = await Http.GetFromJsonAsync<List<Video>>("/api/videos") ?? new List<Video>();
     }
 
-    private void ShowModal(string url, bool isVideo = false)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        modalVisible = true;
+        if (firstRender)
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>("import", "./scripts/mediaModal.js");
+            var particleModule = await JS.InvokeAsync<IJSObjectReference>("import", "./scripts/particles.js");
+            await particleModule.InvokeVoidAsync("startParticles");
+        }
+    }
+
+    private async Task ShowModalAsync(string url, bool isVideo = false)
+    {
         modalIsVideo = isVideo;
 
         if (isVideo)
@@ -106,39 +118,49 @@ else
             modalImageUrl = url;
             modalVideoUrl = "";
         }
+
+        if (module is not null)
+        {
+            await module.InvokeVoidAsync("show");
+        }
     }
 
-    private void CloseModal()
+    private async Task CloseModalAsync()
     {
-        modalVisible = false;
-        modalIsVideo = false;
+        if (module is not null)
+        {
+            await module.InvokeVoidAsync("hide");
+        }
+
         modalImageUrl = "";
         modalVideoUrl = "";
+        modalIsVideo = false;
     }
 
-    private readonly Dictionary<string, (string bg, string text)> CategoryColors = new()
-    {
-        { "nature", ("#d4e7f6", "#454871") },
-        { "agriculture", ("#caf0cc", "#72744c") },
-        { "industrial", ("#ffebc0", "#be751f") },
-        { "real estate", ("#fabbc3", "#a30e15") },
-        { "wedding", ("#c3f8f9", "#03787c") },
-        { "social", ("#fed5d1", "#b5410d") },
-        { "mapping", ("#caeee9", "#445348") },
-        { "inspection", ("#c3caf9", "#7658e8") },
-        { "videography", ("#d8d8ee", "#373277") },
-        { "photography", ("#80c6ff", "#004e8c") },
-        { "multi-spectra", ("#e5d2e3", "#ae5a7b") },
-        { "event", ("#e5e5e5", "#333333") },
-        { "community", ("#fffefc", "#000000") }
-    };
+    // Bootstrap-based category style mappings (all unique)
+    private readonly Dictionary<string, string> CategoryClasses = new()
+{
+    { "nature", "bg-primary text-white" },            // Blue
+    { "agriculture", "bg-success text-dark" },        // Green
+    { "industrial", "bg-warning text-dark" },         // Orange
+    { "real estate", "bg-danger text-white" },        // Red
+    { "wedding", "bg-info text-dark" },              // Light blue
+    { "social", "bg-secondary text-white" },         // Grey
+    { "mapping", "bg-success-subtle text-dark" },    // Very light green
+    { "inspection", "bg-primary-subtle text-dark" }, // Very light blue
+    { "videography", "bg-warning-subtle text-dark" },// Very light orange
+    { "photography", "bg-info-subtle text-dark" },   // Very light blue
+    { "multi-spectra", "bg-dark text-white" },       // Black / Dark grey
+    { "event", "bg-danger-subtle text-dark" },       // Very light red
+    { "community", "bg-light text-dark" }            // White / Light grey
+};
 
-    private (string bg, string text) GetCategoryColors(string category)
+    private string GetCategoryClasses(string category)
     {
         if (string.IsNullOrWhiteSpace(category))
-            return ("#6c757d", "white");
+            return "bg-secondary text-white";
 
         var key = category.Trim().ToLowerInvariant();
-        return CategoryColors.TryGetValue(key, out var colors) ? colors : ("#6c757d", "white");
+        return CategoryClasses.TryGetValue(key, out var css) ? css : "bg-secondary text-white";
     }
 }
