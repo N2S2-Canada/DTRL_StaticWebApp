@@ -249,6 +249,13 @@ code {
     background-color: rgba(0,0,0,0.45);
     backdrop-filter: blur(4px);
 }
+.modal {
+    z-index: 2000 !important; /* ensures it’s above the canvas */
+}
+
+.modal-backdrop {
+    z-index: 1990 !important;
+}
 #particleCanvas {
     position: fixed;
     top: 0;

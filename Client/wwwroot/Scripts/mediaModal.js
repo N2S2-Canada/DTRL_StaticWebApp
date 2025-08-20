@@ -1,32 +1,28 @@
-﻿// wwwroot/scripts/mediaModal.js
-
-let modalInstance = null;
-
-export function show() {
+﻿// mediaModal.js
+export function showModal() {
     const modalEl = document.getElementById('mediaModal');
-    if (!modalEl) return;
-
-    // Initialize Bootstrap modal if not already
-    if (!modalInstance) {
-        modalInstance = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: true });
+    if (modalEl) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
     }
-
-    modalInstance.show();
 }
 
-export function hide() {
+export function hideModal() {
     const modalEl = document.getElementById('mediaModal');
-    if (!modalEl) return;
+    if (modalEl) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.hide();
 
-    // Stop any playing video
-    const video = modalEl.querySelector('video');
-    if (video) {
-        video.pause();
-        video.currentTime = 0;
+        // Pause any playing video
+        const video = modalEl.querySelector('video');
+        if (video) {
+            video.pause();
+            video.currentTime = 0;
+        }
     }
+}
 
-    // Hide the modal
-    if (modalInstance) {
-        modalInstance.hide();
-    }
+// Optional: particle init function
+export function init() {
+    // Initialize your particles.js / canvas logic here
 }
