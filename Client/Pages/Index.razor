@@ -1,6 +1,160 @@
 @page "/"
+@inject IJSRuntime JS
 
-<h1>Welcome to DiverseTech Robotics Ltd.</h1>
-<p>
-    <a href="/videos">See Videos</a>
-</p>
+<div class="container-fluid p-0">
+
+    <!-- Hero Section -->
+    <section id="top" class="hero-section d-flex flex-column text-light">
+        <div class="parallax-bg" id="hero-bg"></div>
+
+        <div class="container d-flex flex-column justify-content-between" style="height: calc(100vh - 56px); position: relative; z-index:2;">
+
+            <!-- Top: Logo and Company Name -->
+            <div class="d-flex justify-content-center align-items-center flex-wrap mt-3 hero-top fade-in delay-0">
+                <img src="/images/DTRL Logo.svg" alt="Drone Logo" class="hero-logo me-3 mb-2" />
+                <img src="/images/DTRL Letterhead - Single Line.svg" alt="DiverseTech Robotics Ltd." class="hero-letterhead mb-2" />
+            </div>
+
+            <!-- Middle: Headline and subtitle -->
+            <div class="hero-text text-center fade-in delay-1">
+                <h1 class="hero-headline mb-3">Transcending Human Boundaries</h1>
+                <p class="lead mb-0 hero-subtitle">For industry, construction, and environmental monitoring</p>
+            </div>
+
+            <!-- Bottom: Contact Us button -->
+            <div class="hero-cta text-center mb-3 fade-in delay-2">
+                <a href="#contact" class="btn btn-primary btn-lg">Contact Us</a>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Our Services -->
+    <section id="services" class="container py-5">
+        <h2 class="text-center mb-4">Our Services</h2>
+        <div class="row text-center">
+
+            <!-- Service 1 -->
+            <div class="col-md-4 mb-4">
+                <div class="card shadow-sm h-100">
+                    <img src="/images/Aerial Photo Service.webp"
+                         class="card-img-top service-img"
+                         alt="Aerial Photography"
+                         width="800" height="600"
+                         loading="lazy">
+                    <div class="card-body">
+                        <h5 class="card-title">Aerial Photography</h5>
+                        <p class="card-text">
+                            High-resolution aerial photos for real estate, construction, and marketing.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service 2 -->
+            <div class="col-md-4 mb-4">
+                <div class="card shadow-sm h-100">
+                    <img src="/images/Mapping Service.webp"
+                         class="card-img-top service-img"
+                         alt="Surveying & Mapping"
+                         width="800" height="600"
+                         loading="lazy">
+                    <div class="card-body">
+                        <h5 class="card-title">Surveying & Mapping</h5>
+                        <p class="card-text">
+                            Accurate 2D/3D mapping for land development and environmental monitoring.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service 3 -->
+            <div class="col-md-4 mb-4">
+                <div class="card shadow-sm h-100">
+                    <img src="/images/Inspection Service.webp"
+                         class="card-img-top service-img"
+                         alt="Inspection Services"
+                         width="800" height="600"
+                         loading="lazy">
+                    <div class="card-body">
+                        <h5 class="card-title">Inspection Services</h5>
+                        <p class="card-text">
+                            Safe, cost-effective inspections for infrastructure, powerlines, property damage and more.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- About Us -->
+    <section id="about" class="container py-5">
+        <h2 class="text-center mb-4">About Us</h2>
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <p class="lead text-center">
+                    At <strong>DiverseTech Robotics Ltd.</strong>, we are passionate about harnessing drone technology
+                    to deliver innovative solutions for industries ranging from construction to environmental monitoring.
+                    Our experienced team ensures top-quality results, safety, and efficiency on every project.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="bg-light py-5">
+        <div class="container">
+            <h2 class="text-center mb-4">Contact Us</h2>
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <p class="lead text-center mb-4">Have a project in mind or want to learn more about our services?</p>
+                    <p class="lead text-center mb-4">Get in touch with <strong>DiverseTech Robotics Ltd.</strong> today.</p>
+                    <!-- Contact Info -->
+                    <div class="text-center mb-4">
+                        <p><strong>Email:</strong> diversetechrobotics@gmail.com</p>
+                        <p><strong>Phone:</strong> +1 (204) 509-0729</p>
+                    </div>
+
+                    <!-- Contact Form -->
+                    <form>
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="name" placeholder="Your name" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" placeholder="your@email.com" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Message</label>
+                            <textarea class="form-control" id="message" rows="4" placeholder="Your message..."></textarea>
+                        </div>
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary btn-lg">Send Message</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-light py-4 mt-5">
+        <div class="container text-center">
+            <p class="mb-0">&copy; @(DateTime.Now.Year) DiverseTech Robotics Ltd. | All Rights Reserved</p>
+        </div>
+    </footer>
+
+</div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("setupHeroParallax");
+        }
+    }
+}
