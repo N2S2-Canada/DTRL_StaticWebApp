@@ -1,0 +1,35 @@
+﻿@inject NavigationManager NavigationManager
+
+<div class="col-md-4 mb-4">
+    <div class="card shadow-sm h-100 service-card"
+         role="button"
+         tabindex="0"
+         aria-label="@($"{Service.Title} — view details")"
+         @onclick="NavigateToDetail"
+         @onkeydown="OnKeyDown">
+        <img src="@Service.ImageUrl"
+             class="card-img-top service-img"
+             alt="@Service.Title"
+             width="800" height="600"
+             loading="lazy" />
+        <div class="card-body">
+            <h5 class="card-title">@Service.Title</h5>
+            <p class="card-text">@Service.Description</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Service Service { get; set; } = default!;
+
+    private void NavigateToDetail()
+        => NavigationManager.NavigateTo($"/services/{Service.Id}");
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " " or "Spacebar") // Spacebar for older browsers
+        {
+            NavigateToDetail();
+        }
+    }
+}

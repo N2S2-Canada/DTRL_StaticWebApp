@@ -7,6 +7,7 @@ body {
     animation: gradientShift 20s ease infinite;
     min-height: 100vh;
     color: #111; /* text color for readability */
+    padding-top: 72px; /* typical Bootstrap navbar height; adjust if yours is taller */
 }
 
 @keyframes gradientShift {
@@ -270,7 +271,7 @@ code {
 ========================= */
 html {
     scroll-behavior: smooth;
-    scroll-padding-top: 56px; /* fixed navbar offset */
+    scroll-padding-top: 72px; /* fixed navbar offset */
 }
 
 .hero-section {
@@ -411,15 +412,66 @@ html {
         font-size: 1rem;
     }
 }
-/* Service image hover effect */
-.service-img {
-    object-fit: cover;
-    height: 250px;
-    border-radius: 0.5rem 0.5rem 0 0;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+/* Clickable service cards */
+.service-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    border: 1px solid rgba(0,200,255,0.15);
+    cursor: pointer;
+    border-radius: 0.5rem;
 }
 
-    .service-img:hover {
-        transform: scale(1.05);
-        box-shadow: 0 8px 20px rgba(0,200,255,0.3);
+    .service-card:hover {
+        transform: translateY(-6px) scale(1.02);
+        box-shadow: 0 12px 28px rgba(0,200,255,0.35), 0 0 14px rgba(0,200,255,0.25);
+        border-color: rgba(0,200,255,0.5);
     }
+
+    /* Active/click press feedback */
+    .service-card:active {
+        transform: translateY(-2px) scale(0.995);
+    }
+
+    /* Focus ring for keyboard navigation */
+    .service-card:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(13,110,253,0.5), 0 12px 28px rgba(0,200,255,0.3);
+        border-color: #0d6efd;
+    }
+
+/* Optional: image zoom harmonizes with card lift */
+.service-img {
+    transition: transform 0.25s ease;
+}
+
+.service-card:hover .service-img {
+    transform: scale(1.05);
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .service-card,
+    .service-img {
+        transition: none;
+    }
+}
+.section-block img {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+    .section-block img:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+    }
+
+.section-body p {
+    margin-bottom: 0.8rem;
+}
+
+.section-body ul {
+    margin-bottom: 0.8rem;
+    padding-left: 1.25rem;
+}
+
+.section-body li {
+    margin-bottom: 0.35rem;
+}

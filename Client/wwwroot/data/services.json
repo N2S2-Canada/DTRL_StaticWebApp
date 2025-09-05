@@ -1,0 +1,48 @@
+[
+  {
+    "Id": "events",
+    "Title": "Events",
+    "Description": "Weddings, reunions, fairs or community festivities. For all types of events, we can capture high resolution photos and video, while ensuring that we provide complete legal compliance.",
+    "ImageUrl": "/images/events.webp",
+    "Sections": [
+      {
+        "Title": "Weddings and Reunions",
+        "ImageUrl": "/images/wedding.webp",
+        "BodyHtml": "<p>From unobtrusive pictures and video, to up-close and personal records of the happy day, we have you covered.</p>"
+      },
+      {
+        "Title": "Community Events",
+        "ImageUrl": "/images/community_event.webp",
+        "BodyHtml": "<p>Rodeos, markets, car shows, etc. After obtaining the appropriate clearances from Transport Canada and NavCan, we will help get the videos and photos that help make your event memorable.</p>"
+      },
+      {
+        "Title": "Non-advertised Events",
+        "ImageUrl": "/images/non-advertised_event.webp",
+        "BodyHtml": "<p>Record of get-togethers, sporting events and other important happenings from perspectives that the average person never sees.</p>"
+      }
+    ]
+  },
+  {
+    "Id": "inspection",
+    "Title": "Inspection Services",
+    "Description": "Safe, cost-effective inspections for infrastructure, powerlines, property damage and more.",
+    "ImageUrl": "/images/Inspection Service.webp",
+    "Sections": [
+      {
+        "Title": "Roof Damage Assessment",
+        "ImageUrl": "/images/inspection-roof.webp",
+        "BodyHtml": "<p>High-resolution orthomosaics and oblique imagery to identify hail, wind, and water damage. Deliverables include geotagged photos and a summary report.</p>"
+      },
+      {
+        "Title": "Powerline & Utility Inspection",
+        "ImageUrl": "/images/inspection-utility.webp",
+        "BodyHtml": "<p>Thermal and RGB capture to spot hotspots, insulator defects, and vegetation encroachment. Secure online delivery and annotated issue tracking included.</p>"
+      },
+      {
+        "Title": "Bridge & Structure Survey",
+        "ImageUrl": "/images/inspection-bridge.webp",
+        "BodyHtml": "<p>Close-proximity flights with collision sensing to document cracking, spalling, and corrosion. 3D reconstructions available for progress comparisons.</p>"
+      }
+    ]
+  }
+]

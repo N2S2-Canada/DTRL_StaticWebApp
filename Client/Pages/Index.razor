@@ -1,5 +1,8 @@
 @page "/"
+@using System.Net.Http.Json
 @inject IJSRuntime JS
+@inject HttpClient Http
+@inject NavigationManager Nav
 
 <div class="container-fluid p-0">
 
@@ -32,62 +35,31 @@
     <!-- Our Services -->
     <section id="services" class="container py-5">
         <h2 class="text-center mb-4">Our Services</h2>
-        <div class="row text-center">
 
-            <!-- Service 1 -->
-            <div class="col-md-4 mb-4">
-                <div class="card shadow-sm h-100">
-                    <img src="/images/Aerial Photo Service.webp"
-                         class="card-img-top service-img"
-                         alt="Aerial Photography"
-                         width="800" height="600"
-                         loading="lazy">
-                    <div class="card-body">
-                        <h5 class="card-title">Aerial Photography</h5>
-                        <p class="card-text">
-                            High-resolution aerial photos for real estate, construction, and marketing.
-                        </p>
-                    </div>
-                </div>
+        @if (!string.IsNullOrEmpty(loadError))
+        {
+            <div class="alert alert-danger" role="alert">
+                Couldn’t load services: @loadError
             </div>
-
-            <!-- Service 2 -->
-            <div class="col-md-4 mb-4">
-                <div class="card shadow-sm h-100">
-                    <img src="/images/Mapping Service.webp"
-                         class="card-img-top service-img"
-                         alt="Surveying & Mapping"
-                         width="800" height="600"
-                         loading="lazy">
-                    <div class="card-body">
-                        <h5 class="card-title">Surveying & Mapping</h5>
-                        <p class="card-text">
-                            Accurate 2D/3D mapping for land development and environmental monitoring.
-                        </p>
-                    </div>
-                </div>
+        }
+        else if (services is null)
+        {
+            <p class="text-center">Loading services...</p>
+        }
+        else if (services.Count == 0)
+        {
+            <p class="text-center">No services are available yet.</p>
+        }
+        else
+        {
+            <div class="row text-center">
+                @foreach (var service in services)
+                {
+                    <ServiceCard Service="service" />
+                }
             </div>
-
-            <!-- Service 3 -->
-            <div class="col-md-4 mb-4">
-                <div class="card shadow-sm h-100">
-                    <img src="/images/Inspection Service.webp"
-                         class="card-img-top service-img"
-                         alt="Inspection Services"
-                         width="800" height="600"
-                         loading="lazy">
-                    <div class="card-body">
-                        <h5 class="card-title">Inspection Services</h5>
-                        <p class="card-text">
-                            Safe, cost-effective inspections for infrastructure, powerlines, property damage and more.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-        </div>
+        }
     </section>
-
 
     <!-- About Us -->
     <section id="about" class="container py-5">
@@ -150,6 +122,26 @@
 </div>
 
 @code {
+    private List<Service>? services;
+    private string? loadError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Build an absolute URL from the SPA’s base so this works locally, in SWA, and under subpaths.
+            var baseUri = new Uri(Nav.BaseUri);
+            var jsonUri = new Uri(baseUri, "data/services.json?v=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+
+            services = await Http.GetFromJsonAsync<List<Service>>(jsonUri.ToString());
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+            services = new(); // avoid a perpetual "Loading..." state
+        }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
