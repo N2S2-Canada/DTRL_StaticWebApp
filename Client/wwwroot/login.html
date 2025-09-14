@@ -53,28 +53,23 @@
 
     <script>
         (async function () {
-            // Determine where to send the user after successful login.
-            // Priority: URL param ?r=<path> > referrer admin path > current path > default.
+            // Figure out where to return after successful login.
+            // Priority: ?r=<path> > admin referrer > current path.
             const qs = new URLSearchParams(location.search);
             let returnTo = qs.get("r") || (location.pathname + location.search + location.hash);
 
             try {
                 const ref = document.referrer ? new URL(document.referrer) : null;
                 if (ref && ref.origin === location.origin && ref.pathname.startsWith("/admin/")) {
-                    // Prefer the admin page that originally triggered the 401/403.
                     returnTo = ref.pathname + ref.search + ref.hash;
                 }
             } catch (_) { }
 
-            // Avoid redirect loops: never target /login or the not-authorized page.
-            const badTargets = new Set(["/login", "/login/", "/not-authorized.html"]);
-            if (badTargets.has(returnTo)) {
-                // Pick your preferred landing page for admins:
-                returnTo = "/admin/cms"; // or "/" if you prefer
-            }
+            // Avoid loops: never route back to these helper pages.
+            const badTargets = new Set(["/login", "/login/", "/not-authorized.html", "/switch-account.html"]);
+            if (badTargets.has(returnTo)) returnTo = "/admin/cms";
 
-            // Helper to redirect
-            const go = (url) => location.replace(url);
+            const go = url => location.replace(url);
 
             // Ask SWA who we are
             let me;
@@ -89,21 +84,19 @@
             const isAdmin = roles.some(r => r && r.toLowerCase() === "admin");
 
             if (!isAuthenticated) {
-                // Not signed in → Microsoft (Entra) login, then back to returnTo.
-                // Use prompt=select_account to let the user pick/change accounts when needed.
-                const loginUrl = "/.auth/login/aad?prompt=select_account&post_login_redirect_uri=" + encodeURIComponent(returnTo);
-                go(loginUrl);
+                // Not signed in -> go to AAD login (account picker), then back to desired page
+                go("/.auth/login/aad?prompt=select_account&post_login_redirect_uri=" + encodeURIComponent(returnTo));
                 return;
             }
 
             if (isAdmin) {
-                // Signed in as admin → go back where they wanted.
+                // Already an admin -> go to the page they wanted
                 go(returnTo);
                 return;
             }
 
-            // Signed in but not admin → friendly page.
-            go("/not-authorized.html");
+            // Signed in but not admin -> run the full switch flow (SWA logout -> AAD logout -> account picker)
+            go("/switch-account.html?r=" + encodeURIComponent(returnTo));
         })();
     </script>
 </body>

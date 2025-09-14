@@ -129,7 +129,8 @@
 
             // Wire buttons
             document.getElementById("signin").setAttribute("href", loginUrl);
-            document.getElementById("signin-diff").setAttribute("href", logoutThenLoginForce);
+            const switchUrl = "/switch-account.html?r=" + encodeURIComponent(returnTo);
+            document.getElementById("signin-diff").setAttribute("href", switchUrl);
             document.getElementById("signout").setAttribute("href", logoutToHome);
 
             // Show current identity
