@@ -1,0 +1,92 @@
+﻿@page "/admin/cms"
+@inject Client.Services.CmsAdminService Admin
+@inject NavigationManager Nav
+
+<h3>CMS Editor</h3>
+
+@if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (rows is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="mb-3">
+        <button class="btn btn-primary me-2" @onclick="SaveAsync" disabled="@busy">Save</button>
+        <button class="btn btn-secondary" @onclick="AddRow">Add</button>
+        @if (busy)
+        {
+            <span class="ms-2">Saving…</span>
+        }
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr><th style="width:30%">Key</th><th>Content (HTML allowed)</th><th style="width:6rem"></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in rows)
+                {
+                    <tr>
+                        <td>
+                            <input class="form-control" @bind="r.Key" />
+                        </td>
+                        <td>
+                            <textarea class="form-control" rows="4" @bind="r.Content"></textarea>
+                        </td>
+                        <td>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="(() => RemoveRow(r))">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<CmsAdminService.Row>? rows;
+    private bool busy;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            rows = await Admin.GetAllAsync();
+            rows = rows.OrderBy(r => r.Key).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private void AddRow() => rows?.Add(new CmsAdminService.Row());
+    private void RemoveRow(CmsAdminService.Row r) { rows?.Remove(r); }
+
+    private async Task SaveAsync()
+    {
+        if (rows is null) return;
+        busy = true; error = null;
+        try
+        {
+            // Simple validation
+            var dup = rows.Select(r => r.Key.Trim())
+                          .GroupBy(k => k, StringComparer.OrdinalIgnoreCase)
+                          .FirstOrDefault(g => !string.IsNullOrWhiteSpace(g.Key) && g.Count() > 1);
+            if (dup is not null)
+                throw new InvalidOperationException($"Duplicate key: {dup.Key}");
+
+            // Trim blanks, drop empty keys
+            var clean = rows.Where(r => !string.IsNullOrWhiteSpace(r.Key))
+                            .Select(r => new CmsAdminService.Row { Key = r.Key.Trim(), Content = r.Content ?? "" })
+                            .ToList();
+
+            await Admin.SaveAsync(clean);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+}

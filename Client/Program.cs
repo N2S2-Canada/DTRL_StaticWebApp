@@ -19,5 +19,8 @@ builder.Services.AddScoped(sp =>
 
 builder.Services.AddScoped<MetaTagService>();
 builder.Services.AddScoped<CmsService>();
+// Program.cs (WASM)
+builder.Services.AddScoped<CmsAdminService>();
+
 
 await builder.Build().RunAsync();
