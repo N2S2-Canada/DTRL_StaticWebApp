@@ -4,44 +4,54 @@
     <meta charset="utf-8" />
     <title>Not authorized</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
     <style>
         :root {
             color-scheme: light dark;
         }
 
+        html, body {
+            height: 100%;
+        }
+
         body {
-            font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;
             margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Arial, sans-serif;
         }
 
         .wrap {
-            min-height: 100vh;
+            min-height: 100%;
             display: grid;
             place-items: center;
             padding: 2rem;
         }
 
         .card {
-            max-width: 720px;
+            max-width: 760px;
             width: 100%;
-            background: rgba(0,0,0,.04);
-            border-radius: 20px;
+            border-radius: 18px;
             padding: 2rem;
+            background: rgba(0,0,0,.04);
         }
 
         h1 {
             margin: 0 0 .5rem;
-            font-size: clamp(1.5rem, 3vw, 2rem);
+            font-size: clamp(1.6rem, 3vw, 2rem);
         }
 
         p {
-            margin: .25rem 0 .75rem;
+            margin: .25rem 0 .8rem;
             line-height: 1.5;
         }
 
+        code {
+            padding: .15rem .35rem;
+            border-radius: .4rem;
+            background: rgba(0,0,0,.08);
+        }
+
         .hint {
-            opacity: .8;
-            font-size: .95rem;
+            opacity: .85;
         }
 
         .actions {
@@ -62,13 +72,7 @@
         a.primary {
             border-color: transparent;
             background: #2563eb;
-            color: white;
-        }
-
-        code {
-            padding: .2rem .35rem;
-            border-radius: .4rem;
-            background: rgba(0,0,0,.08);
+            color: #fff;
         }
 
         .who {
@@ -89,14 +93,11 @@
             </p>
 
             <div class="actions">
-                <!-- Sign in with a different account -->
-                <a class="button primary" href="/.auth/logout?post_logout_redirect_uri=/login">Sign in as a different user</a>
-
-                <!-- Try again (home) -->
+                <!-- Will be set dynamically to return to the page you came from -->
+                <a id="signin" class="button primary" href="/.auth/login/aad">Sign in</a>
+                <a id="signin-diff" class="button" href="#">Sign in as a different user</a>
+                <a id="signout" class="button" href="/.auth/logout">Sign out</a>
                 <a class="button" href="/">Go to home</a>
-
-                <!-- Optional: email the owner -->
-                <a class="button" href="mailto:diversetechrobotics@gmail.com?subject=Access%20request%20for%20admin%20area">Request access</a>
             </div>
 
             <div id="who" class="who" hidden></div>
@@ -104,18 +105,45 @@
     </div>
 
     <script>
-    // Show who is currently signed in (if anyone)
-    fetch("/.auth/me", { credentials: "include" })
-      .then(r => r.ok ? r.json() : null)
-      .then(j => {
-        if (!j || !j.clientPrincipal) return;
-        const u = j.clientPrincipal;
-        const roles = (u.userRoles || []).join(", ");
-        const dv = document.getElementById("who");
-        dv.hidden = false;
-        dv.textContent = `Signed in as: ${u.userDetails || "unknown"} — Roles: ${roles || "none"}`;
-      })
-      .catch(() => {});
+        (async function () {
+            // Decide where to return after login: prefer the admin page that led here.
+            let returnTo = "/";
+            try {
+                const ref = document.referrer ? new URL(document.referrer) : null;
+                if (ref && ref.origin === location.origin && ref.pathname.startsWith("/admin/")) {
+                    returnTo = ref.pathname + ref.search + ref.hash;
+                }
+            } catch (_) { }
+
+            // Never loop to this page
+            if (returnTo === "/not-authorized.html") returnTo = "/admin/cms";
+
+            // Build URLs
+            const loginUrl = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent(returnTo);
+            const loginPickAcctUrl = "/.auth/login/aad?prompt=select_account&post_login_redirect_uri=" + encodeURIComponent(returnTo);
+            const logoutToHome = "/.auth/logout?post_logout_redirect_uri=/";
+            const logoutThenLoginPick = "/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent(loginPickAcctUrl);
+
+            // Wire buttons
+            document.getElementById("signin").setAttribute("href", loginUrl);
+            document.getElementById("signin-diff").setAttribute("href", logoutThenLoginPick);
+            document.getElementById("signout").setAttribute("href", logoutToHome);
+
+            // Show current identity
+            try {
+                const r = await fetch("/.auth/me", { credentials: "include" });
+                if (r.ok) {
+                    const j = await r.json();
+                    const u = j && (j.clientPrincipal || j.ClientPrincipal);
+                    if (u) {
+                        const roles = (u.userRoles || u.UserRoles || []).join(", ");
+                        const who = document.getElementById("who");
+                        who.hidden = false;
+                        who.textContent = `Signed in as: ${u.userDetails || "unknown"} — Roles: ${roles || "none"}`;
+                    }
+                }
+            } catch { } // noop
+        })();
     </script>
 </body>
 </html>
