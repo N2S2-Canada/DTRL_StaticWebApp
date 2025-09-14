@@ -7,12 +7,17 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Default HttpClient -> SPA origin
-builder.Services.AddScoped(sp => new HttpClient
+// HttpClient base: use API_Prefix in Dev, same-origin in Prod (SWA will proxy /api/*)
+builder.Services.AddScoped(sp =>
 {
-    BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
+    var apiBase = builder.Configuration["ApiBaseUrl"]; // e.g., http://localhost:7071 from wwwroot/appsettings.Development.json
+    if (string.IsNullOrWhiteSpace(apiBase))
+        apiBase = builder.HostEnvironment.BaseAddress; // production fallback (same-origin)
+    if (!apiBase.EndsWith("/")) apiBase += "/";
+    return new HttpClient { BaseAddress = new Uri(apiBase, UriKind.Absolute) };
 });
 
 builder.Services.AddScoped<MetaTagService>();
+builder.Services.AddScoped<CmsService>();
 
 await builder.Build().RunAsync();

@@ -1,0 +1,41 @@
+﻿@* Components/CmsPreloadTxt.razor *@
+@inject CmsService Cms
+
+@if (!_ready && Blocking && !string.IsNullOrWhiteSpace(Placeholder))
+{
+    @((MarkupString)Placeholder!)
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public string[] Keys { get; set; } = Array.Empty<string>();
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+
+    /// <summary>
+    /// If true, wait for warm to finish before showing children (old behavior).
+    /// Default false: render immediately for fast TTFB and swap in content when ready.
+    /// </summary>
+    [Parameter] public bool Blocking { get; set; } = false;
+
+    private bool _ready;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Blocking)
+        {
+            _ready = false;
+            if (Keys?.Length > 0) await Cms.WarmAsync(Keys);
+            _ready = true;
+        }
+        else
+        {
+            // fire-and-forget warm; don't block UI
+            if (Keys?.Length > 0) _ = Cms.WarmAsync(Keys);
+            _ready = true;
+        }
+    }
+}

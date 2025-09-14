@@ -1,0 +1,48 @@
+﻿@inject CmsService Cms
+
+@if (!_loaded)
+{
+    if (!string.IsNullOrWhiteSpace(Placeholder))
+    {
+        <span>@((MarkupString)Placeholder!)</span>
+    }
+}
+else
+{
+    <span>@((MarkupString)(_content ?? Fallback ?? string.Empty))</span>
+}
+
+@code {
+    [Parameter] public string Key { get; set; } = default!;
+    [Parameter] public string? Fallback { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    /// <summary>If true, will fetch this key on its own when missing. Default false to avoid duplicate calls.</summary>
+    [Parameter] public bool FetchIfMissing { get; set; } = false;
+
+    private bool _loaded;
+    private string? _content;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+
+        // 1) Use cache if available
+        if (Cms.TryGetCached(Key, out var cached))
+        {
+            _content = cached;
+            _loaded = true;
+            return;
+        }
+
+        // 2) Optionally fetch just this key (we keep it off by default)
+        if (FetchIfMissing)
+        {
+            try { _content = await Cms.GetAsync(Key); }
+            catch { _content = null; }
+        }
+
+        _loaded = true;
+    }
+}
+
+
