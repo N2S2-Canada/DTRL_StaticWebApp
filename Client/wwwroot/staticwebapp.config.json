@@ -12,10 +12,7 @@
   ],
   "navigationFallback": { "rewrite": "index.html" },
   "responseOverrides": {
-    "401": {
-      "redirect": "/.auth/login/aad?post_login_redirect_uri=/admin/cms",
-      "statusCode": 302
-    },
-    "403": { "rewrite": "/not-authorized.html" }
+    "401": { "rewrite": "/login" },
+    "403": { "rewrite": "/login" }
   }
 }

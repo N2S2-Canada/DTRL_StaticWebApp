@@ -1,33 +1,110 @@
 ﻿<!doctype html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8" />
     <title>Signing you in…</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
     <style>
+        :root {
+            color-scheme: light dark;
+        }
+
+        html, body {
+            height: 100%;
+        }
+
         body {
+            margin: 0;
+            display: grid;
+            place-items: center;
             font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;
-            margin: 2rem
+        }
+
+        .box {
+            padding: 2rem;
+            border-radius: 18px;
+            background: rgba(0,0,0,.04);
+            max-width: 720px;
+        }
+
+        h1 {
+            margin: 0 0 .5rem;
+            font-size: clamp(1.4rem, 3vw, 2rem);
+        }
+
+        p {
+            margin: .25rem 0;
+            line-height: 1.5;
+            opacity: .9;
+        }
+
+        .muted {
+            opacity: .7;
+            font-size: .95rem;
         }
     </style>
 </head>
 <body>
-    <p>Redirecting to sign in…</p>
+    <div class="box">
+        <h1>Checking your sign-in…</h1>
+        <p class="muted">One moment while we redirect you.</p>
+    </div>
+
     <script>
-    // Default: current URL (while 401 was rewritten to /login)
-    var returnTo = location.pathname + location.search + location.hash;
+        (async function () {
+            // Determine where to send the user after successful login.
+            // Priority: URL param ?r=<path> > referrer admin path > current path > default.
+            const qs = new URLSearchParams(location.search);
+            let returnTo = qs.get("r") || (location.pathname + location.search + location.hash);
 
-    // If the request was actually for an /admin/* page, try to recover it from the referrer
-    try {
-      var ref = document.referrer ? new URL(document.referrer) : null;
-      if (ref && ref.origin === location.origin && ref.pathname.startsWith("/admin/")) {
-        returnTo = ref.pathname + ref.search + ref.hash;
-      }
-    } catch (e) { /* ignore */ }
+            try {
+                const ref = document.referrer ? new URL(document.referrer) : null;
+                if (ref && ref.origin === location.origin && ref.pathname.startsWith("/admin/")) {
+                    // Prefer the admin page that originally triggered the 401/403.
+                    returnTo = ref.pathname + ref.search + ref.hash;
+                }
+            } catch (_) { }
 
-    // Kick off Entra ID login and come back to the original page
-    var url = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent(returnTo);
-    location.replace(url);
+            // Avoid redirect loops: never target /login or the not-authorized page.
+            const badTargets = new Set(["/login", "/login/", "/not-authorized.html"]);
+            if (badTargets.has(returnTo)) {
+                // Pick your preferred landing page for admins:
+                returnTo = "/admin/cms"; // or "/" if you prefer
+            }
+
+            // Helper to redirect
+            const go = (url) => location.replace(url);
+
+            // Ask SWA who we are
+            let me;
+            try {
+                const res = await fetch("/.auth/me", { credentials: "include", cache: "no-store" });
+                if (res.ok) me = await res.json();
+            } catch { }
+
+            const princ = me && (me.clientPrincipal || me.ClientPrincipal) || null;
+            const roles = (princ && (princ.userRoles || princ.UserRoles)) || [];
+            const isAuthenticated = roles.some(r => r && r.toLowerCase() === "authenticated");
+            const isAdmin = roles.some(r => r && r.toLowerCase() === "admin");
+
+            if (!isAuthenticated) {
+                // Not signed in → Microsoft (Entra) login, then back to returnTo.
+                // Use prompt=select_account to let the user pick/change accounts when needed.
+                const loginUrl = "/.auth/login/aad?prompt=select_account&post_login_redirect_uri=" + encodeURIComponent(returnTo);
+                go(loginUrl);
+                return;
+            }
+
+            if (isAdmin) {
+                // Signed in as admin → go back where they wanted.
+                go(returnTo);
+                return;
+            }
+
+            // Signed in but not admin → friendly page.
+            go("/not-authorized.html");
+        })();
     </script>
 </body>
 </html>
