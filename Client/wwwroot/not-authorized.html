@@ -119,14 +119,17 @@
             if (returnTo === "/not-authorized.html") returnTo = "/admin/cms";
 
             // Build URLs
+            // Build URLs
             const loginUrl = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent(returnTo);
-            const loginPickAcctUrl = "/.auth/login/aad?prompt=select_account&post_login_redirect_uri=" + encodeURIComponent(returnTo);
+            // Force credential entry (prevents silent reuse of the wrong account)
+            const loginForce = "/.auth/login/aad?prompt=login&post_login_redirect_uri=" + encodeURIComponent(returnTo);
             const logoutToHome = "/.auth/logout?post_logout_redirect_uri=/";
-            const logoutThenLoginPick = "/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent(loginPickAcctUrl);
+            // Log out of SWA, then immediately send to AAD with prompt=login
+            const logoutThenLoginForce = "/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent(loginForce);
 
             // Wire buttons
             document.getElementById("signin").setAttribute("href", loginUrl);
-            document.getElementById("signin-diff").setAttribute("href", logoutThenLoginPick);
+            document.getElementById("signin-diff").setAttribute("href", logoutThenLoginForce);
             document.getElementById("signout").setAttribute("href", logoutToHome);
 
             // Show current identity
