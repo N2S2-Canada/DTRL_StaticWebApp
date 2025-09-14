@@ -1,0 +1,121 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Not authorized</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        :root {
+            color-scheme: light dark;
+        }
+
+        body {
+            font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;
+            margin: 0;
+        }
+
+        .wrap {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 2rem;
+        }
+
+        .card {
+            max-width: 720px;
+            width: 100%;
+            background: rgba(0,0,0,.04);
+            border-radius: 20px;
+            padding: 2rem;
+        }
+
+        h1 {
+            margin: 0 0 .5rem;
+            font-size: clamp(1.5rem, 3vw, 2rem);
+        }
+
+        p {
+            margin: .25rem 0 .75rem;
+            line-height: 1.5;
+        }
+
+        .hint {
+            opacity: .8;
+            font-size: .95rem;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .75rem;
+            margin-top: 1rem;
+        }
+
+        a.button {
+            text-decoration: none;
+            padding: .6rem 1rem;
+            border-radius: 10px;
+            border: 1px solid rgba(0,0,0,.2);
+            display: inline-block;
+        }
+
+        a.primary {
+            border-color: transparent;
+            background: #2563eb;
+            color: white;
+        }
+
+        code {
+            padding: .2rem .35rem;
+            border-radius: .4rem;
+            background: rgba(0,0,0,.08);
+        }
+
+        .who {
+            margin-top: .75rem;
+            font-size: .95rem;
+            opacity: .9;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="card">
+            <h1>Not authorized</h1>
+            <p>You’re signed in, but your account doesn’t have access to this page.</p>
+            <p class="hint">
+                If you believe this is a mistake, contact the site owner and ask to be added to the
+                <code>admin</code> role for this domain.
+            </p>
+
+            <div class="actions">
+                <!-- Sign in with a different account -->
+                <a class="button primary" href="/.auth/logout?post_logout_redirect_uri=/login">Sign in as a different user</a>
+
+                <!-- Try again (home) -->
+                <a class="button" href="/">Go to home</a>
+
+                <!-- Optional: email the owner -->
+                <a class="button" href="mailto:diversetechrobotics@gmail.com?subject=Access%20request%20for%20admin%20area">Request access</a>
+            </div>
+
+            <div id="who" class="who" hidden></div>
+        </div>
+    </div>
+
+    <script>
+    // Show who is currently signed in (if anyone)
+    fetch("/.auth/me", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => {
+        if (!j || !j.clientPrincipal) return;
+        const u = j.clientPrincipal;
+        const roles = (u.userRoles || []).join(", ");
+        const dv = document.getElementById("who");
+        dv.hidden = false;
+        dv.textContent = `Signed in as: ${u.userDetails || "unknown"} — Roles: ${roles || "none"}`;
+      })
+      .catch(() => {});
+    </script>
+</body>
+</html>

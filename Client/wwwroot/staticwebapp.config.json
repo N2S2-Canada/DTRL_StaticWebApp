@@ -10,5 +10,12 @@
       "allowedRoles": [ "admin" ]
     }
   ],
-  "navigationFallback": { "rewrite": "index.html" }
+  "navigationFallback": { "rewrite": "index.html" },
+  "responseOverrides": {
+    "401": {
+      "redirect": "/.auth/login/aad?post_login_redirect_uri=/admin/cms",
+      "statusCode": 302
+    },
+    "403": { "rewrite": "/not-authorized.html" }
+  }
 }

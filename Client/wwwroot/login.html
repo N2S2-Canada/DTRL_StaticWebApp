@@ -1,0 +1,33 @@
+﻿<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Signing you in…</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        body {
+            font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;
+            margin: 2rem
+        }
+    </style>
+</head>
+<body>
+    <p>Redirecting to sign in…</p>
+    <script>
+    // Default: current URL (while 401 was rewritten to /login)
+    var returnTo = location.pathname + location.search + location.hash;
+
+    // If the request was actually for an /admin/* page, try to recover it from the referrer
+    try {
+      var ref = document.referrer ? new URL(document.referrer) : null;
+      if (ref && ref.origin === location.origin && ref.pathname.startsWith("/admin/")) {
+        returnTo = ref.pathname + ref.search + ref.hash;
+      }
+    } catch (e) { /* ignore */ }
+
+    // Kick off Entra ID login and come back to the original page
+    var url = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent(returnTo);
+    location.replace(url);
+    </script>
+</body>
+</html>
