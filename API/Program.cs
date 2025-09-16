@@ -1,105 +1,50 @@
-﻿// Program.cs (Azure Functions .NET Isolated)
-// - SQL auth if User Id/Password are present in connection string
-// - Otherwise AAD token auth via Managed Identity -> ClientSecret -> DefaultAzureCredential
-// - Registers AddDbContextFactory<AppDbContext> (inject IDbContextFactory<AppDbContext> in functions)
+﻿// Program.cs — Functions (isolated), Tables-backed CMS, User Secrets in Development
 
-using System.Data.Common;
 using System.Reflection;
-using API.Data;                       // <-- your AppDbContext namespace
-using Azure.Core;
-using Azure.Identity;
+using API.Services;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 var host = new HostBuilder()
-    .ConfigureFunctionsWebApplication()
-    .ConfigureAppConfiguration(cfg =>
+    // Load extra configuration sources BEFORE the Functions host starts.
+    .ConfigureAppConfiguration((context, config) =>
     {
-        // Load in this order; later providers override earlier ones
-        cfg.AddJsonFile("local.settings.json", optional: true, reloadOnChange: true)
-           .AddUserSecrets(Assembly.GetExecutingAssembly(), optional: true, reloadOnChange: true)
-           .AddEnvironmentVariables();
+        // The Functions host already maps local.settings.json -> environment variables under "Values:*".
+        // Here we add User Secrets in Development so keys like "CmsAdminApiKey" are available locally
+        // without putting them in local.settings.json.
+        if (context.HostingEnvironment.IsDevelopment())
+        {
+            config.AddUserSecrets(Assembly.GetExecutingAssembly(), optional: true);
+        }
+
+        // Environment variables are included by default; nothing else needed here.
     })
-.ConfigureServices((ctx, services) =>
-{
-    var cfg = ctx.Configuration;
-    var env = ctx.HostingEnvironment;
-
-    // ---- Connection string ----
-    var cs = cfg["SQLConnectionString"] ?? cfg.GetConnectionString("Sql")
-             ?? throw new InvalidOperationException("Missing SQLConnectionString (or ConnectionStrings:Sql).");
-
-    var csb = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(cs);
-    var usingSqlUserPassword = !string.IsNullOrWhiteSpace(csb.UserID) || !string.IsNullOrWhiteSpace(csb.Password);
-
-    // ---- AAD credential (only if NOT using SQL user/password) ----
-    if (!usingSqlUserPassword)
+    .ConfigureFunctionsWebApplication()
+    .ConfigureServices((ctx, services) =>
     {
-        var tenantId = cfg["AzureAd:TenantId"] ?? cfg["TenantId"];
-        var clientId = cfg["AzureAd:ClientId"] ?? cfg["ClientId"];
-        var clientSec = cfg["AzureAd:ClientSecret"] ?? cfg["ClientSecret"];
+        // Observability (keep if you had it)
+        services.AddApplicationInsightsTelemetryWorkerService();
+        services.ConfigureFunctionsApplicationInsights();
 
-        Azure.Core.TokenCredential credential;
+        // In-memory cache for CMS text
+        services.AddMemoryCache();
+        services.AddSingleton<IPageTextCache, PageTextCache>(); // your cache implementation updated for Tables
 
-        if (!string.IsNullOrWhiteSpace(tenantId) &&
-            !string.IsNullOrWhiteSpace(clientId) &&
-            !string.IsNullOrWhiteSpace(clientSec))
-        {
-            // Dev/local (fast): use the SP from secrets or local.settings.json
-            credential = new Azure.Identity.ClientSecretCredential(tenantId, clientId, clientSec);
-        }
-        else if (!env.IsDevelopment())
-        {
-            // Prod without client secret: prefer Managed Identity
-            credential = new Azure.Identity.ManagedIdentityCredential();
-        }
-        else
-        {
-            // Dev fallback: VS/AzCLI/etc., but skip MI to avoid slow IMDS probing locally
-            credential = new Azure.Identity.DefaultAzureCredential(new Azure.Identity.DefaultAzureCredentialOptions
-            {
-                ExcludeManagedIdentityCredential = true
-            });
-        }
+        // Azure Table Storage repository for PageText
+        services.AddSingleton<IPageTextRepository, TablePageTextRepository>();
 
-        services.AddSingleton<Azure.Core.TokenCredential>(credential);
-        services.AddSingleton<Microsoft.EntityFrameworkCore.Diagnostics.DbConnectionInterceptor, AadAccessTokenInterceptor>();
-    }
+        // Optional but recommended: warm up cache from Tables at host start
+        services.AddHostedService<WarmupHostedService>();
 
-    // ---- EF Core (pooled factory) ----
-    services.AddPooledDbContextFactory<API.Data.AppDbContext>((sp, opts) =>
-    {
-        opts.UseSqlServer(cs, sql =>
-        {
-            sql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
-            sql.CommandTimeout(180);
-        });
-
-        if (!usingSqlUserPassword)
-        {
-            // Attach AAD token interceptor when using AAD auth
-            opts.AddInterceptors(sp.GetRequiredService<Microsoft.EntityFrameworkCore.Diagnostics.DbConnectionInterceptor>());
-        }
-    });
-
-    // ---- PageText server-side caching ----
-    services.AddMemoryCache();
-    services.AddSingleton<IPageTextCache, PageTextCache>();
-
-    // Optional: warm EF model/connection on startup (speeds up first hit)
-    services.AddHostedService<WarmupHostedService>();
-
-    // (Optional) telemetry
-    services.AddApplicationInsightsTelemetryWorkerService();
-    services.ConfigureFunctionsApplicationInsights();
-})
-
+        // NOTE: No EF/DbContext/Sql interceptors here anymore.
+        // Your repository will use either:
+        //   - StorageConnectionString (access key)  OR
+        //   - StorageAccountUrl + DefaultAzureCredential (if you later enable MI/SP)
+    })
     .ConfigureLogging(logging =>
     {
         logging.ClearProviders();
@@ -108,40 +53,39 @@ var host = new HostBuilder()
     })
     .Build();
 
-await host.RunAsync();
+host.Run();
 
-/// <summary>
-/// Interceptor that injects an Entra ID access token into each SqlConnection
-/// when using AAD-based auth (scope: https://database.windows.net/.default).
-/// </summary>
-file sealed class AadAccessTokenInterceptor : DbConnectionInterceptor
+
+// ------------------------------
+// WarmupHostedService
+// (Keep this ONLY if you don't already have one elsewhere.)
+// ------------------------------
+public sealed class WarmupHostedService : IHostedService
 {
-    private static readonly TokenRequestContext Scope =
-        new(["https://database.windows.net/.default"]);
+    private readonly IPageTextRepository _repo;
+    private readonly IPageTextCache _cache;
+    private readonly ILogger<WarmupHostedService> _log;
 
-    private readonly TokenCredential _credential;
-
-    public AadAccessTokenInterceptor(TokenCredential credential) => _credential = credential;
-
-    public override InterceptionResult ConnectionOpening(
-        DbConnection connection, ConnectionEventData eventData, InterceptionResult result)
+    public WarmupHostedService(IPageTextRepository repo, IPageTextCache cache, ILogger<WarmupHostedService> log)
     {
-        if (connection is SqlConnection sql)
-        {
-            // Synchronous token for sync open paths
-            sql.AccessToken = _credential.GetToken(Scope, default).Token;
-        }
-        return result;
+        _repo = repo;
+        _cache = cache;
+        _log = log;
     }
 
-    public override async ValueTask<InterceptionResult> ConnectionOpeningAsync(
-        DbConnection connection, ConnectionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
+    public async Task StartAsync(CancellationToken ct)
     {
-        if (connection is SqlConnection sql)
+        try
         {
-            // Async token for async open paths
-            sql.AccessToken = (await _credential.GetTokenAsync(Scope, cancellationToken)).Token;
+            var data = await _repo.GetAllAsync(ct);
+            _cache.Seed(new Dictionary<string, string>(data, StringComparer.OrdinalIgnoreCase));
+            _log.LogInformation("PageText cache primed from Azure Table Storage.");
         }
-        return result;
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Warmup failed; will load on first request.");
+        }
     }
+
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
 }

@@ -1,59 +1,33 @@
 ﻿using System.Net;
 using System.Web;
-using API.Data;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
-using Microsoft.Extensions.Logging;
+using API.Services;
 
 namespace API;
 
-public sealed class GetPageText
+public class GetPageText
 {
-    private readonly IPageTextCache _cache;
-    private readonly ILogger<GetPageText> _logger;
+    private readonly IPageTextRepository _repo;
 
-    public GetPageText(IPageTextCache cache, ILogger<GetPageText> logger)
-    {
-        _cache = cache;
-        _logger = logger;
-    }
+    public GetPageText(IPageTextRepository repo) => _repo = repo;
 
-    /// GET /api/pagetext?key=AboutUs.Lead&key=ContactUs.Email
     [Function("GetPageText")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "pagetext")] HttpRequestData req)
     {
-        try
-        {
-            var nv = HttpUtility.ParseQueryString(req.Url.Query);
-            var keys = nv.GetValues("key") ?? Array.Empty<string>();
+        var q = HttpUtility.ParseQueryString(req.Url.Query);
+        var keys = q.GetValues("key") ?? Array.Empty<string>();
 
-            List<object> rows;
+        IDictionary<string, string> map =
+            keys.Length == 0
+                ? await _repo.GetAllAsync()
+                : await _repo.GetByKeysAsync(keys);
 
-            if (keys.Length == 0)
-            {
-                var dict = await _cache.GetAllAsync();
-                rows = dict.Select(kv => new { Key = kv.Key, Content = kv.Value })
-                           .Cast<object>().ToList();
-            }
-            else
-            {
-                var dict = await _cache.GetManyAsync(keys);
-                rows = dict.Select(kv => new { Key = kv.Key, Content = kv.Value })
-                           .Cast<object>().ToList();
-            }
+        var list = map.Select(kv => new { key = kv.Key, content = kv.Value }).ToList();
 
-            var res = req.CreateResponse(HttpStatusCode.OK);
-            res.Headers.Add("Cache-Control", "public, max-age=300"); // 5 min client cache
-            await res.WriteAsJsonAsync(rows);
-            return res;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to fetch PageText.");
-            var err = req.CreateResponse(HttpStatusCode.InternalServerError);
-            await err.WriteStringAsync("Error fetching page text.");
-            return err;
-        }
+        var res = req.CreateResponse(HttpStatusCode.OK);
+        await res.WriteAsJsonAsync(list);
+        return res;
     }
 }
