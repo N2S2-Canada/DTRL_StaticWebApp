@@ -1,4 +1,4 @@
-﻿@page "/services/{id}"
+﻿@page "/services/{Id}"
 @using System.Net.Http.Json
 @using SharedModels
 @inject HttpClient Http
@@ -91,37 +91,44 @@ else
 }
 
 @code {
-    [Parameter] public string id { get; set; } = string.Empty;
+    [Parameter] public string Id { get; set; } = string.Empty;
 
     private Service? service;
     private static readonly Service NotFound = new();
     private const string DefaultOgImage = "/images/og-default.webp";
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        // Build absolute URL so it works from /services/{id}
-        var baseUri = new Uri(Navigation.BaseUri);
-        var jsonUri = new Uri(baseUri, "data/services.json");
+        service = null; // show "Loading…" for route changes
 
-        var all = await Http.GetFromJsonAsync<List<Service>>(jsonUri.ToString());
-        service = all?.FirstOrDefault(s => string.Equals(s.Id, id, StringComparison.OrdinalIgnoreCase))
-                  ?? NotFound;
+        try
+        {
+            var safeId = Uri.EscapeDataString(Id ?? "");
+            // SWA proxies /api to your Functions app
+            service = await Http.GetFromJsonAsync<Service>($"api/services/{safeId}");
+            if (service is null) service = NotFound;
+        }
+        catch
+        {
+            service = NotFound;
+        }
 
         // SEO tags
-        var selectedImg = service != NotFound && !string.IsNullOrWhiteSpace(service.ImageUrl)
-            ? service.ImageUrl : DefaultOgImage;
+        var title = service != NotFound ? $"{service!.Title} | DiverseTech Robotics Ltd."
+                                        : "Service Not Found | DiverseTech Robotics Ltd.";
+        var desc = service != NotFound ? service!.Description
+                                        : "Explore our drone service offerings.";
+        var selectedImg = (service != NotFound && !string.IsNullOrWhiteSpace(service!.ImageUrl))
+            ? service!.ImageUrl
+            : DefaultOgImage;
         var absoluteImg = Navigation.ToAbsoluteUri(selectedImg).ToString();
 
-        await MetaTags.SetSeoTagsAsync(
-            service != NotFound ? $"{service.Title} | DiverseTech Robotics Ltd." : "Service Not Found | DiverseTech Robotics Ltd.",
-            service != NotFound ? service.Description : "Explore our drone service offerings.",
-            absoluteImg
-        );
+        await MetaTags.SetSeoTagsAsync(title, desc, absoluteImg);
     }
+
     private void GoBackToServices()
     {
         // Force a full page load so the hash scroll happens after the DOM is ready
         Navigation.NavigateTo("/#services", forceLoad: true);
     }
-
 }

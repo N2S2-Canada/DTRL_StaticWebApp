@@ -137,13 +137,15 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // --- Services loader (unchanged logic) ---
         try
         {
-            var baseUri = new Uri(Nav.BaseUri);
-            var jsonUri = new Uri(baseUri, "data/services.json?v=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            // Fetch services from Functions API (SWA proxies /api to your Functions app)
+            services = await Http.GetFromJsonAsync<List<Service>>("api/services");
 
-            services = await Http.GetFromJsonAsync<List<Service>>(jsonUri.ToString());
+            // Optional: if you ever run the WASM app without SWA dev server, use a config override:
+            // var apiBase = /* read from config or env */;
+            // var url = string.IsNullOrWhiteSpace(apiBase) ? "api/services" : $"{apiBase.TrimEnd('/')}/api/services";
+            // services = await Http.GetFromJsonAsync<List<Service>>(url);
         }
         catch (Exception ex)
         {

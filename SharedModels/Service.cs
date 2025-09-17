@@ -7,6 +7,9 @@
         public string Description { get; set; } = string.Empty;
         public string ImageUrl { get; set; } = string.Empty;
 
+        // NEW: determines order on the landing page (lower first)
+        public int Sort { get; set; } = 0;
+
         public List<ServiceSection> Sections { get; set; } = new();
     }
 

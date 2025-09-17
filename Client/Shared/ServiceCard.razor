@@ -1,35 +1,25 @@
-﻿@inject NavigationManager NavigationManager
+﻿@using SharedModels
+@inject NavigationManager Nav
 
 <div class="col-md-4 mb-4">
-    <div class="card shadow-sm h-100 service-card"
-         role="button"
-         tabindex="0"
-         aria-label="@($"{Service.Title} — view details")"
-         @onclick="NavigateToDetail"
-         @onkeydown="OnKeyDown">
+    <div class="card shadow-sm h-100 service-card position-relative">
         <img src="@Service.ImageUrl"
              class="card-img-top service-img"
              alt="@Service.Title"
              width="800" height="600"
-             loading="lazy" />
+             loading="lazy"
+             decoding="async" />
         <div class="card-body">
             <h5 class="card-title">@Service.Title</h5>
             <p class="card-text">@Service.Description</p>
+            <!-- Make the whole card clickable -->
+            <a class="stretched-link"
+               href="@($"/services/{Uri.EscapeDataString(Service.Id)}")"
+               aria-label="@($"{Service.Title} — view details")"></a>
         </div>
     </div>
 </div>
 
 @code {
     [Parameter] public Service Service { get; set; } = default!;
-
-    private void NavigateToDetail()
-        => NavigationManager.NavigateTo($"/services/{Service.Id}");
-
-    private void OnKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key is "Enter" or " " or "Spacebar") // Spacebar for older browsers
-        {
-            NavigateToDetail();
-        }
-    }
 }

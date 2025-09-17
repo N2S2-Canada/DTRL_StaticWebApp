@@ -8,11 +8,27 @@
       "route": "/api/pagetext",
       "methods": [ "POST" ],
       "allowedRoles": [ "admin" ]
+    },
+    {
+      "route": "/api/services",
+      "methods": [ "POST" ],
+      "allowedRoles": [ "admin" ]
+    },
+    {
+      "route": "/login",
+      "rewrite": "/login.html"
+    }
+    {
+      "route": "/api/blob/sas",
+      "methods": [ "POST" ],
+      "allowedRoles": [ "admin" ]
     }
   ],
   "navigationFallback": { "rewrite": "index.html" },
   "responseOverrides": {
-    "401": { "rewrite": "/login" },
-    "403": { "rewrite": "/login" }
+    "403": {
+      "rewrite": "/login.html",
+      "statusCode": 302
+    }
   }
 }

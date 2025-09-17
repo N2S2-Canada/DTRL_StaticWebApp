@@ -39,6 +39,7 @@ var host = new HostBuilder()
 
         // Optional but recommended: warm up cache from Tables at host start
         services.AddHostedService<WarmupHostedService>();
+        services.AddSingleton<IServiceRepository, TableServiceRepository>();
 
         // NOTE: No EF/DbContext/Sql interceptors here anymore.
         // Your repository will use either:
