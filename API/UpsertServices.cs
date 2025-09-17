@@ -8,7 +8,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SharedModels;
 using System.Net;
-using System.Text.Json;
 
 namespace API.Functions;
 
@@ -35,10 +34,13 @@ public sealed class UpsertServices
     public async Task<HttpResponseData> Run(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "services")] HttpRequestData req)
     {
-        // --- Auth: SWA admin role OR x-api-key (if configured) OR Dev (no key) ---
+        // Auth: SWA admin role OR x-api-key (if configured) OR Dev (no key)
         if (!StaticWebAppsAuth.IsAuthorizedAdmin(req, _cfg, _env))
         {
-            var status = StaticWebAppsAuth.HasPrincipal(req) ? HttpStatusCode.Forbidden : HttpStatusCode.Unauthorized;
+            var status = StaticWebAppsAuth.HasPrincipal(req)
+                ? HttpStatusCode.Forbidden
+                : HttpStatusCode.Unauthorized;
+
             var deny = req.CreateResponse(status);
             await deny.WriteStringAsync("Unauthorized.");
             return deny;
@@ -49,7 +51,6 @@ public sealed class UpsertServices
         Service? input;
         try
         {
-            var opts = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
             input = await req.ReadFromJsonAsync<Service>(cancellationToken: ct);
         }
         catch (Exception ex)
@@ -67,7 +68,6 @@ public sealed class UpsertServices
             return bad;
         }
 
-        // Basic validation
         if (string.IsNullOrWhiteSpace(input.Id))
         {
             var bad = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -75,21 +75,21 @@ public sealed class UpsertServices
             return bad;
         }
 
-        // Normalize null collections
+        // Normalize
         input.Sections ??= new List<ServiceSection>();
 
         try
         {
-            // NOTE: if your repository method name differs, rename this call accordingly.
-            await _repo.UpsertServiceAsync(input, ct);
+            // Save service + sections in one call
+            await _repo.UpsertFullAsync(input, ct);
 
             var ok = req.CreateResponse(HttpStatusCode.OK);
-            await ok.WriteAsJsonAsync(new { saved = input.Id }, cancellationToken: ct);
+            await ok.WriteAsJsonAsync(new { saved = input.Id }, ct);
             return ok;
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Failed to upsert service {@ServiceId}", input.Id);
+            _log.LogError(ex, "Failed to upsert service {ServiceId}", input.Id);
             var err = req.CreateResponse(HttpStatusCode.InternalServerError);
             await err.WriteStringAsync("Failed to save service.");
             return err;
