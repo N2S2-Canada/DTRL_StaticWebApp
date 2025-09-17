@@ -109,11 +109,11 @@ namespace API
                         var isVideo = allowedVideoExtensions.Contains(extension);
 
                         // Use download URL if available
-                        string mediaUrl = i.AdditionalData != null && i.AdditionalData.TryGetValue("@microsoft.graph.downloadUrl", out var downloadUrl)
+                        string? mediaUrl = i.AdditionalData != null && i.AdditionalData.TryGetValue("@microsoft.graph.downloadUrl", out var downloadUrl)
                             ? downloadUrl?.ToString() ?? i.WebUrl
                             : i.WebUrl;
 
-                        string thumbnailUrl = mediaUrl;
+                        string thumbnailUrl = mediaUrl ?? string.Empty;
 
                         if (isVideo)
                         {
@@ -121,11 +121,11 @@ namespace API
                             {
                                 var thumbs = await graphClient.Drives[drive.Id].Items[i.Id].Thumbnails.GetAsync();
                                 // Use the LARGE thumbnail if available
-                                thumbnailUrl = thumbs?.Value?.FirstOrDefault()?.Large?.Url ?? mediaUrl;
+                                thumbnailUrl = thumbs?.Value?.FirstOrDefault()?.Large?.Url ?? mediaUrl ?? string.Empty;
                             }
                             catch
                             {
-                                thumbnailUrl = mediaUrl; // fallback
+                                thumbnailUrl = mediaUrl ?? string.Empty; // fallback
                             }
                         }
 
@@ -133,7 +133,7 @@ namespace API
                         {
                             Name = ToFriendlyName(Path.GetFileNameWithoutExtension(i.Name ?? string.Empty)),
                             Url = mediaUrl,
-                            ThumbnailUrl = thumbnailUrl,
+                            ThumbnailUrl = thumbnailUrl ?? string.Empty,
                             Categories = categories,
                             IsVideo = isVideo
                         };

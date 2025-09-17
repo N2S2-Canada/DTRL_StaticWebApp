@@ -1,122 +1,98 @@
-﻿using System.Net;
-using System.Text.Json;
-using System.Text.RegularExpressions;
+﻿// API/Functions/UpsertServices.cs
+using API.Security;
+using API.Services;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using API.Services;
 using SharedModels;
+using System.Net;
+using System.Text.Json;
 
-namespace API;
+namespace API.Functions;
 
 public sealed class UpsertServices
 {
-    private readonly IServiceRepository _repo;
     private readonly ILogger<UpsertServices> _log;
-    private readonly string? _apiKey; // dev key optional
+    private readonly IConfiguration _cfg;
+    private readonly IHostEnvironment _env;
+    private readonly IServiceRepository _repo;
 
-    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-
-    public UpsertServices(IServiceRepository repo, ILogger<UpsertServices> log, IConfiguration cfg)
+    public UpsertServices(
+        ILogger<UpsertServices> log,
+        IConfiguration cfg,
+        IHostEnvironment env,
+        IServiceRepository repo)
     {
-        _repo = repo;
         _log = log;
-
-        // Prefer a Services-specific key first; fall back to your existing Cms key if you want to reuse it
-        _apiKey = cfg["ServicesAdminApiKey"]
-               ?? cfg["CmsAdminApiKey"]
-               ?? cfg["Values:ServicesAdminApiKey"]
-               ?? cfg["Values:CmsAdminApiKey"];
+        _cfg = cfg;
+        _env = env;
+        _repo = repo;
     }
 
     [Function("UpsertServices")]
     public async Task<HttpResponseData> Run(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "services")] HttpRequestData req,
-        FunctionContext ctx)
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "services")] HttpRequestData req)
     {
-        // ---------- 1) Authorize ----------
-        // In production SWA: locked down via staticwebapp.config.json to role "admin".
-        // In local dev: allow X-API-KEY header equal to ServicesAdminApiKey/CmsAdminApiKey.
-        if (!await IsAuthorizedAsync(req))
-            return req.CreateResponse(HttpStatusCode.Unauthorized);
-
-        // ---------- 2) Parse body (1 or many) ----------
-        string body = await new StreamReader(req.Body).ReadToEndAsync();
-        if (string.IsNullOrWhiteSpace(body))
-            return await Fail(req, HttpStatusCode.BadRequest, "Empty body.");
-
-        List<Service>? payload = null;
-
-        // Try array first
-        try { payload = JsonSerializer.Deserialize<List<Service>>(body, JsonOpts); } catch { /* ignore */ }
-
-        // If not an array, try single object
-        if (payload is null || payload.Count == 0)
+        // --- Auth: SWA admin role OR x-api-key (if configured) OR Dev (no key) ---
+        if (!StaticWebAppsAuth.IsAuthorizedAdmin(req, _cfg, _env))
         {
-            try
-            {
-                var one = JsonSerializer.Deserialize<Service>(body, JsonOpts);
-                if (one is not null) payload = new List<Service> { one };
-            }
-            catch { /* ignore */ }
+            var status = StaticWebAppsAuth.HasPrincipal(req) ? HttpStatusCode.Forbidden : HttpStatusCode.Unauthorized;
+            var deny = req.CreateResponse(status);
+            await deny.WriteStringAsync("Unauthorized.");
+            return deny;
         }
 
-        if (payload is null || payload.Count == 0)
-            return await Fail(req, HttpStatusCode.BadRequest, "Body must be a Service or an array of Services.");
+        var ct = req.FunctionContext.CancellationToken;
 
-        // ---------- 3) Normalize + save ----------
-        foreach (var svc in payload)
+        Service? input;
+        try
         {
-            // Ensure an Id/slug. If empty, derive from Title.
-            if (string.IsNullOrWhiteSpace(svc.Id))
-                svc.Id = Slugify(svc.Title);
-
-            if (string.IsNullOrWhiteSpace(svc.Id))
-                return await Fail(req, HttpStatusCode.BadRequest, "Each service needs an Id or a Title to slugify.");
-
-            // Save card
-            await _repo.UpsertServiceAsync(svc);
-
-            // Replace sections atomically (batched by partition)
-            await _repo.ReplaceSectionsAsync(svc.Id, svc.Sections ?? Enumerable.Empty<ServiceSection>());
+            var opts = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+            input = await req.ReadFromJsonAsync<Service>(cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Invalid JSON body for upsert.");
+            var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+            await bad.WriteStringAsync("Invalid JSON.");
+            return bad;
         }
 
-        return req.CreateResponse(HttpStatusCode.NoContent);
-    }
-
-    // ---------- helpers ----------
-
-    private Task<bool> IsAuthorizedAsync(HttpRequestData req)
-    {
-        // 1) If running under SWA and route is restricted, SWA won’t even reach here unless you’re admin.
-        // 2) Dev override: X-API-KEY in header equals configured _apiKey.
-        if (!string.IsNullOrEmpty(_apiKey))
+        if (input is null)
         {
-            if (req.Headers.TryGetValues("x-api-key", out var vals) && vals.Any(v => v == _apiKey))
-                return Task.FromResult(true);
+            var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+            await bad.WriteStringAsync("Missing request body.");
+            return bad;
         }
 
-        // Optional: look at /.auth/me principal when running under SWA
-        // (SWA Free/Local emulator may not pass this reliably to Functions)
-        // Keep it simple: rely on route protection (admin) for prod.
-        return Task.FromResult(false);
-    }
+        // Basic validation
+        if (string.IsNullOrWhiteSpace(input.Id))
+        {
+            var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+            await bad.WriteStringAsync("Service.Id (slug) is required.");
+            return bad;
+        }
 
-    private static string Slugify(string? input)
-    {
-        if (string.IsNullOrWhiteSpace(input)) return "";
-        var s = input.Trim().ToLowerInvariant();
-        s = s.Replace('_', '-').Replace(' ', '-');
-        s = Regex.Replace(s, @"[^a-z0-9\-]+", "-");
-        s = Regex.Replace(s, @"-+", "-").Trim('-');
-        return s;
-    }
+        // Normalize null collections
+        input.Sections ??= new List<ServiceSection>();
 
-    private static async Task<HttpResponseData> Fail(HttpRequestData req, HttpStatusCode code, string message)
-    {
-        var res = req.CreateResponse(code);
-        await res.WriteStringAsync(message);
-        return res;
+        try
+        {
+            // NOTE: if your repository method name differs, rename this call accordingly.
+            await _repo.UpsertServiceAsync(input, ct);
+
+            var ok = req.CreateResponse(HttpStatusCode.OK);
+            await ok.WriteAsJsonAsync(new { saved = input.Id }, cancellationToken: ct);
+            return ok;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Failed to upsert service {@ServiceId}", input.Id);
+            var err = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await err.WriteStringAsync("Failed to save service.");
+            return err;
+        }
     }
 }
