@@ -15,20 +15,24 @@
       "allowedRoles": [ "admin" ]
     },
     {
-      "route": "/login",
-      "rewrite": "/login.html"
-    }
-    {
       "route": "/api/blob/sas",
       "methods": [ "POST" ],
       "allowedRoles": [ "admin" ]
+    },
+    {
+      "route": "/login",
+      "rewrite": "/login.html"
     }
   ],
   "navigationFallback": { "rewrite": "index.html" },
   "responseOverrides": {
-    "403": {
-      "rewrite": "/login.html",
+    "401": {
+      "redirect": "/login",
       "statusCode": 302
+    },
+    "403": {
+      "rewrite": "/not-authorized.html",
+      "statusCode": 403
     }
   }
 }
