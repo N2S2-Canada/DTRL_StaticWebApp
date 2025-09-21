@@ -12,7 +12,7 @@ using API.Services; // ICustomerContentRepository
 
 namespace API.Functions;
 
-public sealed class VideosInspect
+public sealed partial class VideosInspect
 {
     private readonly ILogger<VideosInspect> _log;
     private readonly ICustomerContentRepository _repo;
@@ -65,7 +65,7 @@ public sealed class VideosInspect
             if (!string.IsNullOrWhiteSpace(code))
             {
                 var normalized = code.Trim().ToUpperInvariant();
-                if (!Regex.IsMatch(normalized, "^[A-Z0-9]{5}$"))
+                if (!CodeRegex().IsMatch(normalized))
                 {
                     Trace("Code format invalid.");
                     var bad = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -287,4 +287,7 @@ public sealed class VideosInspect
             parts[i] = Uri.EscapeDataString(parts[i]);
         return string.Join("/", parts);
     }
+
+    [GeneratedRegex("^[A-Z0-9]{5}$")]
+    private static partial Regex CodeRegex();
 }
