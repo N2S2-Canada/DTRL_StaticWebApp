@@ -85,8 +85,8 @@ else
 
 @code {
     [Parameter] 
-    [SupplyParameterFromQuery(Name = "code")] 
-    public string? code { get; set; }   // comes from ?code=ABCDE
+    [SupplyParameterFromQuery(Name = "cust_code")] 
+    public string? customerCode { get; set; }   // comes from ?code=ABCDE
 
     private List<Video>? videos;
     private string? pageTitle;
@@ -107,9 +107,9 @@ else
     protected override async Task OnParametersSetAsync()
     {
         // Build the API URL depending on whether a code was provided
-        var url = string.IsNullOrWhiteSpace(code)
+        var url = string.IsNullOrWhiteSpace(customerCode)
             ? "/api/videos"
-            : $"/api/videos?code={Uri.EscapeDataString(code)}";
+            : $"/api/videos?cust_code={Uri.EscapeDataString(customerCode)}";
 
         try
         {

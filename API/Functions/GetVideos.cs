@@ -58,7 +58,7 @@ namespace API.Functions
             {
                 // Optional ?code=ABCDE
                 var q = HttpUtility.ParseQueryString(req.Url.Query);
-                var code = q["code"];
+                var customerCode = q["cust_code"];
 
                 var tenantId = Environment.GetEnvironmentVariable("TenantId");
                 var clientId = Environment.GetEnvironmentVariable("ClientId");
@@ -69,16 +69,16 @@ namespace API.Functions
                 string folderPath = defaultFolderPath ?? string.Empty;
                 string? displayName = null;
 
-                if (!string.IsNullOrWhiteSpace(code))
+                if (!string.IsNullOrWhiteSpace(customerCode))
                 {
-                    if (!Regex.IsMatch(code, "^[A-Za-z0-9]{5}$"))
+                    if (!Regex.IsMatch(customerCode, "^[A-Za-z0-9]{5}$"))
                     {
                         var bad = req.CreateResponse(HttpStatusCode.BadRequest);
                         await bad.WriteStringAsync("Invalid code format.");
                         return bad;
                     }
 
-                    var match = await _customerRepo.GetByCodeAsync(code, req.FunctionContext.CancellationToken);
+                    var match = await _customerRepo.GetByCodeAsync(customerCode, req.FunctionContext.CancellationToken);
                     if (match is null || string.IsNullOrWhiteSpace(match.SharePath))
                     {
                         var notFound = req.CreateResponse(HttpStatusCode.NotFound);

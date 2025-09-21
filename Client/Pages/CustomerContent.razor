@@ -27,10 +27,10 @@
             <input class="form-control"
                    placeholder="e.g. A3K9Z"
                    maxlength="5"
-                   @bind="code"
+                   @bind="customerCode"
                    @bind:event="oninput"
                    aria-label="Access code" />
-            <button class="btn btn-primary" type="submit" disabled="@(!IsValid(code))">
+            <button class="btn btn-primary" type="submit" disabled="@(!IsValid(customerCode))">
                 Get Content
             </button>
         </div>
@@ -43,7 +43,7 @@
 </div>
 
 @code {
-    private string? code;
+    private string? customerCode;
     private string? error;
 
     private bool IsValid(string? c) =>
@@ -54,7 +54,7 @@
     private Task OnSubmit()
     {
         error = null;
-        var c = (code ?? "").Trim();
+        var c = (customerCode ?? "").Trim();
 
         if (!IsValid(c))
         {
@@ -63,7 +63,7 @@
         }
 
         // Navigate to the media page for this code
-        Nav.NavigateTo($"/videos?code={Uri.EscapeDataString(c)}", forceLoad: true);
+        Nav.NavigateTo($"/videos?cust_code={Uri.EscapeDataString(c)}", forceLoad: true);
         return Task.CompletedTask;
     }
 

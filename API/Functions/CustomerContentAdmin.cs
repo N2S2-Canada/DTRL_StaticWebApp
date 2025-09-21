@@ -46,7 +46,7 @@ public sealed class CustomerContentAdmin
             var active = DateTimeOffset.UtcNow <= expires;
             return new
             {
-                Code = r.Code,
+                Code = r.CustomerCode,
                 r.DisplayName,
                 r.SharePath,
                 r.KeepAliveMonths,
@@ -76,7 +76,7 @@ public sealed class CustomerContentAdmin
         var display = body?.DisplayName;
 
         var entity = await _repo.CreateCodeAsync(display, keep, ct);
-        var code = entity.Code;
+        var code = entity.CustomerCode;
 
         var res = req.CreateResponse(HttpStatusCode.OK);
         await res.WriteAsJsonAsync(new

@@ -24,7 +24,7 @@ public interface ICustomerContentRepository
 /// </summary>
 public sealed class CustomerEntry
 {
-    public string Code { get; set; } = "";
+    public string CustomerCode { get; set; } = "";
     public string? DisplayName { get; set; }
     public string? SharePath { get; set; }
     public int KeepAliveMonths { get; set; }
@@ -90,7 +90,7 @@ public sealed class TableCustomerContentRepository : ICustomerContentRepository
 
         return new CustomerEntry
         {
-            Code = e.RowKey,
+            CustomerCode = e.RowKey,
             DisplayName = e.DisplayName,
             SharePath = e.SharePath,
             KeepAliveMonths = e.KeepAliveMonths,
@@ -112,11 +112,11 @@ public sealed class TableCustomerContentRepository : ICustomerContentRepository
         return new string(buf);
     }
 
-    private async Task<bool> CodeExistsAsync(string code, CancellationToken ct)
+    private async Task<bool> CodeExistsAsync(string customerCode, CancellationToken ct)
     {
         try
         {
-            await _table.GetEntityAsync<CustomerContentEntity>(PK, code, cancellationToken: ct);
+            await _table.GetEntityAsync<CustomerContentEntity>(PK, customerCode, cancellationToken: ct);
             return true;
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
@@ -127,11 +127,11 @@ public sealed class TableCustomerContentRepository : ICustomerContentRepository
 
     // -------- Public API --------
 
-    public async Task<CustomerEntry?> GetByCodeAsync(string code, CancellationToken ct = default)
+    public async Task<CustomerEntry?> GetByCodeAsync(string customercode, CancellationToken ct = default)
     {
         try
         {
-            var got = await _table.GetEntityAsync<CustomerContentEntity>(PK, code, cancellationToken: ct);
+            var got = await _table.GetEntityAsync<CustomerContentEntity>(PK, customercode, cancellationToken: ct);
             return Map(got.Value, DateTimeOffset.UtcNow);
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
@@ -155,13 +155,13 @@ public sealed class TableCustomerContentRepository : ICustomerContentRepository
     public async Task<CustomerEntry> CreateCodeAsync(string? displayName, int keepAliveMonths, CancellationToken ct = default)
     {
         // Generate a unique 5-char code
-        string code;
+        string customerCode;
         int attempts = 0;
         do
         {
-            code = NewCode();
+            customerCode = NewCode();
             attempts++;
-        } while (await CodeExistsAsync(code, ct) && attempts < 20);
+        } while (await CodeExistsAsync(customerCode, ct) && attempts < 20);
 
         if (attempts >= 20)
             throw new InvalidOperationException("Could not generate a unique code after many attempts.");
@@ -169,7 +169,7 @@ public sealed class TableCustomerContentRepository : ICustomerContentRepository
         var e = new CustomerContentEntity
         {
             PartitionKey = PK,
-            RowKey = code,
+            RowKey = customerCode,
             DisplayName = displayName,
             KeepAliveMonths = keepAliveMonths > 0 ? keepAliveMonths : 12,
             CreatedOn = DateTimeOffset.UtcNow
@@ -181,14 +181,14 @@ public sealed class TableCustomerContentRepository : ICustomerContentRepository
 
     public async Task UpsertAsync(CustomerEntry entry, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(entry.Code))
+        if (string.IsNullOrWhiteSpace(entry.CustomerCode))
             throw new ArgumentException("Code is required.", nameof(entry));
 
         // Try to fetch existing to preserve CreatedOn if present
         CustomerContentEntity? existing = null;
         try
         {
-            var got = await _table.GetEntityAsync<CustomerContentEntity>(PK, entry.Code, cancellationToken: ct);
+            var got = await _table.GetEntityAsync<CustomerContentEntity>(PK, entry.CustomerCode, cancellationToken: ct);
             existing = got.Value;
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
@@ -199,7 +199,7 @@ public sealed class TableCustomerContentRepository : ICustomerContentRepository
         var e = new CustomerContentEntity
         {
             PartitionKey = PK,
-            RowKey = entry.Code,
+            RowKey = entry.CustomerCode,
             DisplayName = entry.DisplayName,
             SharePath = entry.SharePath,
             KeepAliveMonths = entry.KeepAliveMonths,
