@@ -34,12 +34,12 @@ public sealed partial class VideosInspect
         object? finalError = null;
 
         // Inputs
-        string? code = null;
+        string? customerCode = null;
         string? path = null;
         try
         {
             var q = HttpUtility.ParseQueryString(req.Url.Query);
-            code = q["code"]?.Trim();
+            customerCode = q["cust_code"]?.Trim();
             path = q["path"]?.Trim();
         }
         catch (Exception ex)
@@ -61,13 +61,13 @@ public sealed partial class VideosInspect
 
         try
         {
-            if (!string.IsNullOrWhiteSpace(code))
+            if (!string.IsNullOrWhiteSpace(customerCode))
             {
                 // Table name is CustomerContent; StorageConnectionString is used
                 var table = new TableClient(storageConn!, "CustomerContent");
                 // Use a robust query to avoid projection issues
                 await foreach (var row in table.QueryAsync<TableEntity>(
-                                   filter: $"PartitionKey eq 'CustomerContent' and RowKey eq '{code}'",
+                                   filter: $"PartitionKey eq 'CustomerContent' and RowKey eq '{customerCode}'",
                                    cancellationToken: ctx.CancellationToken))
                 {
                     // Try to read SharePath (string)
@@ -116,7 +116,7 @@ public sealed partial class VideosInspect
                     if (isExpired)
                     {
                         // Report but do not throw
-                        finalError = new { Message = "Code is expired.", Code = code, Expires = expires };
+                        finalError = new { Message = "Code is expired.", Code = customerCode, Expires = expires };
                     }
 
                     break; // we only expect one row
@@ -124,8 +124,8 @@ public sealed partial class VideosInspect
 
                 if (repoDump is null)
                 {
-                    repoDump = new { RowFound = false, Code = code };
-                    finalError = new { Message = "No row for code.", Code = code };
+                    repoDump = new { RowFound = false, Code = customerCode };
+                    finalError = new { Message = "No row for code.", Code = customerCode };
                 }
             }
             else
@@ -209,7 +209,7 @@ public sealed partial class VideosInspect
 
         var payload = new
         {
-            Input = new { code, path },
+            Input = new { customerCode, path },
             SiteId = siteId,
             HasStorageConn = !string.IsNullOrWhiteSpace(storageConn),
             HasTenant = !string.IsNullOrWhiteSpace(tenantId),
