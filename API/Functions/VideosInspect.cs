@@ -1,248 +1,273 @@
 ﻿// API/Functions/VideosInspect.cs
 using System.Net;
-using System.Text.Json;
-using Azure;
-using Azure.Data.Tables;
+using System.Text.RegularExpressions;
+using System.Web; // HttpUtility
 using Azure.Identity;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
+using API.Services; // ICustomerContentRepository
 
 namespace API.Functions;
 
 public sealed class VideosInspect
 {
     private readonly ILogger<VideosInspect> _log;
+    private readonly ICustomerContentRepository _repo;
 
-    public VideosInspect(ILogger<VideosInspect> log) => _log = log;
+    public VideosInspect(ILogger<VideosInspect> log, ICustomerContentRepository repo)
+    {
+        _log = log;
+        _repo = repo;
+    }
 
     [Function("VideosInspect")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "videos/inspect")] HttpRequestData req,
         FunctionContext ctx)
     {
+        var ct = ctx.CancellationToken;
+
+        var dbg = new List<string>();
+        void Trace(string msg)
+        {
+            var line = $"[{DateTimeOffset.UtcNow:HH:mm:ss}] {msg}";
+            dbg.Add(line);
+            _log.LogInformation(msg);
+        }
+
         var res = req.CreateResponse();
         try
         {
-            // ----- Read query -----
-            var q = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
-            // Accept both "code" and "cc" to dodge any special handling of ?code=
-            var code = q["code"] ?? q["cc"];
+            // -------- Inputs --------
+            var q = HttpUtility.ParseQueryString(req.Url.Query);
+            var code = q["code"];
             var path = q["path"];
 
-            // ----- Env sanity -----
-            var siteId = Environment.GetEnvironmentVariable("SiteId");
+            Trace($"INPUT code='{(code ?? "(none)")}', path='{(path ?? "(none)")}'");
+
+            // -------- Env --------
             var tenantId = Environment.GetEnvironmentVariable("TenantId");
             var clientId = Environment.GetEnvironmentVariable("ClientId");
             var clientSecret = Environment.GetEnvironmentVariable("ClientSecret");
-            var defaultFolder = Environment.GetEnvironmentVariable("FolderPath") ?? string.Empty;
+            var siteId = Environment.GetEnvironmentVariable("SiteId");
+            var storageConn = Environment.GetEnvironmentVariable("StorageConnectionString");
 
-            // Storage bits
-            var tableName = Environment.GetEnvironmentVariable("CustomerContentTableName") ?? "CustomerContent";
-            var cs = Environment.GetEnvironmentVariable("StorageConnectionString")
-                     ?? Environment.GetEnvironmentVariable("Values:StorageConnectionString")
-                     ?? Environment.GetEnvironmentVariable("AzureWebJobsStorage");
+            Trace($"ENV hasTenant={tenantId is not null}, hasClient={clientId is not null}, hasSecret={(clientSecret is not null)}, hasStorageConn={(storageConn is not null)}");
 
-            var diag = new
-            {
-                Input = new { code, path },
-                SiteId = siteId,
-                HasStorageConn = !string.IsNullOrWhiteSpace(cs),
-                HasTenant = !string.IsNullOrWhiteSpace(tenantId),
-                HasClient = !string.IsNullOrWhiteSpace(clientId),
-                HasSecret = !string.IsNullOrWhiteSpace(clientSecret),
-                Repo = new Dictionary<string, object?>(),
-                Tried = new List<object>(),
-                Success = (object?)null,
-                Children = new List<object>(),
-            };
+            string? effectivePath = path;
+            string? title = null;
 
-            var tried = (List<object>)diag.Tried;
-            var repo = (Dictionary<string, object?>)diag.Repo;
-            var children = (List<object>)diag.Children;
-
-            // ----- If a code was supplied, try the table lookup FIRST -----
-            string? effectiveFolder = null;
-            string? displayName = null;
-
+            // -------- If code provided, look it up via repo (DTO, not TableEntity) --------
+            object? repoDump = null;
             if (!string.IsNullOrWhiteSpace(code))
             {
-                string partKey = "CustomerContent";
-                string rowKey = code.Trim().ToUpperInvariant();
-
-                try
+                var normalized = code.Trim().ToUpperInvariant();
+                if (!Regex.IsMatch(normalized, "^[A-Z0-9]{5}$"))
                 {
-                    TableClient table;
-                    if (!string.IsNullOrWhiteSpace(cs))
-                    {
-                        table = new TableClient(cs!, tableName);
-                    }
-                    else
-                    {
-                        var acct = Environment.GetEnvironmentVariable("StorageAccountUrl")
-                                   ?? throw new InvalidOperationException("Missing StorageConnectionString or StorageAccountUrl.");
-                        table = new TableClient(new Uri(acct), tableName, new DefaultAzureCredential());
-                    }
-
-                    await table.CreateIfNotExistsAsync();
-
-                    var got = await table.GetEntityAsync<TableEntity>(partKey, rowKey, select: null, cancellationToken: ctx.CancellationToken);
-                    var e = got.Value;
-
-                    // Echo exactly what's on that row
-                    var raw = e.Keys.ToDictionary(k => k, k => e[k]?.ToString());
-                    repo["RowFound"] = true;
-                    repo["PartitionKey"] = e.PartitionKey;
-                    repo["RowKey"] = e.RowKey;
-                    repo["Timestamp"] = e.Timestamp?.ToString("o");
-                    repo["Properties"] = raw;
-
-                    displayName = ReadString(e, "DisplayName");
-                    effectiveFolder = ReadString(e, "SharePath");
-
-                    // Safe read KeepAliveMonths (never throws)
-                    var keep = ReadIntFlexible(e, "KeepAliveMonths", 0);
-                    repo["KeepAliveMonths"] = keep;
-
-                    if (keep > 0 && e.Timestamp is DateTimeOffset ts)
-                    {
-                        var expires = ts.AddMonths(keep);
-                        repo["ExpiresOn"] = expires.ToString("o");
-                        repo["IsExpired"] = DateTimeOffset.UtcNow > expires;
-                    }
+                    Trace("Code format invalid.");
+                    var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+                    await bad.WriteStringAsync("Invalid code format. Expected 5 alphanumeric characters.");
+                    return bad;
                 }
-                catch (RequestFailedException ex) when (ex.Status == 404)
+
+                Trace($"Repo lookup for code '{normalized}'…");
+                var row = await _repo.GetByCodeAsync(normalized, ct);
+                if (row is null || string.IsNullOrWhiteSpace(row.SharePath))
                 {
-                    repo["RowFound"] = false;
-                    repo["Error"] = "Not found";
+                    Trace("Repo: no row or SharePath missing.");
+                    var nf = req.CreateResponse(HttpStatusCode.NotFound);
+                    await nf.WriteStringAsync("This code is invalid or has expired.");
+                    return nf;
                 }
-                catch (Exception ex)
-                {
-                    repo["RowFound"] = false;
-                    repo["Error"] = ex.GetType().Name + ": " + ex.Message;
 
-                    res.StatusCode = HttpStatusCode.OK;
-                    await res.WriteStringAsync(JsonSerializer.Serialize(diag, new JsonSerializerOptions { WriteIndented = true }));
-                    return res;
-                }
+                // Build a safe dump using only DTO fields your model exposes
+                int months = Math.Max(0, row.KeepAliveMonths); // KeepAliveMonths is int
+                DateTimeOffset? expires = months > 0
+                    ? row.CreatedOn.AddMonths(months)
+                    : (DateTimeOffset?)null;
+                var isExpired = expires.HasValue && expires.Value < DateTimeOffset.UtcNow;
+
+                repoDump = new
+                {
+                    RowFound = true,
+                    Code = row.Code,                   // DTO property
+                    row.DisplayName,
+                    row.SharePath,
+                    row.KeepAliveMonths,
+                    row.CreatedOn,
+                    ExpiresOn = expires,
+                    IsExpired = isExpired
+                };
+
+                title = string.IsNullOrWhiteSpace(row.DisplayName) ? null : row.DisplayName;
+                effectivePath = row.SharePath;
+                Trace($"Repo OK. Using SharePath='{effectivePath}', DisplayName='{title ?? "(none)"}'");
+            }
+            else
+            {
+                Trace("No code provided; using 'path' query directly.");
             }
 
-            // ----- Decide which folder to probe -----
-            var folderPath = !string.IsNullOrWhiteSpace(path) ? path : (effectiveFolder ?? defaultFolder);
-            folderPath = (folderPath ?? "").Replace("\\", "/").TrimStart('/');
-
-            // ----- Graph probe -----
+            // -------- Graph auth --------
+            Trace("Creating Graph client…");
             var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
             var graph = new GraphServiceClient(credential, new[] { "https://graph.microsoft.com/.default" });
 
+            Trace($"Resolving drive for SiteId='{siteId}'…");
             var drive = await graph.Sites[siteId].Drive.GetAsync();
-            var candidates = BuildCandidates(folderPath);
-            var encoded = candidates.Select(EncodeSegments).ToList();
-            foreach (var enc in encoded)
+            if (drive is null)
             {
-                if (!candidates.Contains(enc, StringComparer.OrdinalIgnoreCase))
-                    candidates.Add(enc);
+                Trace("Drive not found.");
+                var err = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await err.WriteStringAsync("Drive not found for site.");
+                return err;
             }
+            Trace($"Drive OK. DriveId={drive.Id}");
 
+            // -------- Candidate paths --------
+            var tried = new List<object>();
             DriveItem? folder = null;
-            foreach (var cand in candidates)
+
+            if (string.IsNullOrWhiteSpace(effectivePath))
             {
-                try
+                Trace("No effective path to test (empty).");
+            }
+            else
+            {
+                var candidates = BuildCandidates(effectivePath);
+                var encoded = candidates.Select(EncodeSegments).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                foreach (var c in encoded)
                 {
-                    var f = await graph.Drives[drive!.Id!].Root.ItemWithPath(cand).GetAsync();
-                    if (f is not null)
+                    if (!candidates.Contains(c, StringComparer.OrdinalIgnoreCase))
+                        candidates.Add(c);
+                }
+
+                Trace($"Built {candidates.Count} candidate path(s).");
+                foreach (var c in candidates)
+                {
+                    Trace($"Try: {c}");
+                    try
                     {
+                        var f = await graph.Drives[drive.Id!].Root.ItemWithPath(c).GetAsync();
                         folder = f;
-                        tried.Add(new { Path = cand, Http = 200, Error = (string?)null, ChildrenCount = (int?)null });
+                        Trace($"Resolved: {c}, id={f?.Id}");
+                        tried.Add(new { Path = c, Http = 200, Error = (string?)null, ChildrenCount = (int?)null });
+                        effectivePath = c;
                         break;
                     }
-                }
-                catch (ServiceException sx) when ((int?)sx.ResponseStatusCode == 404)
-                {
-                    tried.Add(new { Path = cand, Http = 404, Error = "NotFound", ChildrenCount = (int?)null });
-                }
-                catch (ServiceException sx)
-                {
-                    tried.Add(new { Path = cand, Http = (int?)sx.ResponseStatusCode, Error = sx.Message, ChildrenCount = (int?)null });
-                }
-                catch (Exception ex)
-                {
-                    tried.Add(new { Path = cand, Http = (int?)null, Error = ex.Message, ChildrenCount = (int?)null });
+                    catch (ServiceException sx)
+                    {
+                        var http = (int?)sx.ResponseStatusCode;
+                        Trace($"Graph error on '{c}': HTTP={(http?.ToString() ?? "n/a")}");
+                        tried.Add(new { Path = c, Http = http, Error = "GraphError", ChildrenCount = (int?)null });
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace($"Error on '{c}': {ex.GetType().Name}");
+                        tried.Add(new { Path = c, Http = (int?)null, Error = ex.GetType().Name, ChildrenCount = (int?)null });
+                    }
                 }
             }
 
             if (folder is null)
             {
-                res.StatusCode = HttpStatusCode.OK;
-                await res.WriteStringAsync(JsonSerializer.Serialize(diag, new JsonSerializerOptions { WriteIndented = true }));
+                Trace("No candidate resolved to a folder.");
+                var payloadNF = new
+                {
+                    Input = new { code, path },
+                    SiteId = siteId,
+                    HasStorageConn = storageConn is not null,
+                    HasTenant = tenantId is not null,
+                    HasClient = clientId is not null,
+                    HasSecret = clientSecret is not null,
+                    Repo = repoDump ?? new { RowFound = false },
+                    Tried = tried,
+                    Success = (object?)null,
+                    Children = Array.Empty<object>(),
+                    Debug = dbg
+                };
+
+                res.StatusCode = HttpStatusCode.NotFound;
+                await res.WriteAsJsonAsync(payloadNF);
                 return res;
             }
 
-            var kids = await graph.Drives[drive!.Id!].Items[folder.Id].Children.GetAsync();
-            var list = kids?.Value ?? new List<DriveItem>();
-
-            foreach (var it in list)
+            // Fetch children of the resolved folder
+            Trace("Fetching children of resolved folder…");
+            var children = await graph.Drives[drive.Id].Items[folder.Id].Children.GetAsync(rc =>
             {
-                children.Add(new
+                rc.QueryParameters.Expand = new[] { "listItem" };
+            });
+
+            var childSummaries = (children?.Value ?? new List<DriveItem>())
+                .Select(i => new
                 {
-                    it.Name,
-                    it.WebUrl,
-                    IsFile = it.File is not null,
-                    Ext = it.File?.MimeType
-                });
+                    i.Name,
+                    i.WebUrl,
+                    IsFile = i.File is not null,
+                    Ext = i.File?.MimeType
+                })
+                .ToList();
+
+            // Update the last 200 item in tried with the count
+            var idx = tried.FindIndex(t => (int?)(t?.GetType().GetProperty("Http")?.GetValue(t) ?? null) == 200);
+            if (idx >= 0)
+            {
+                var last = tried[idx];
+                tried[idx] = new
+                {
+                    Path = last.GetType().GetProperty("Path")!.GetValue(last),
+                    Http = 200,
+                    Error = (string?)null,
+                    ChildrenCount = childSummaries.Count
+                };
             }
 
-            var success = new { path = folderPath, count = list.Count, title = displayName };
-            var final = new
+            Trace($"Children fetched: {childSummaries.Count}");
+
+            var output = new
             {
-                diag.Input,
-                diag.SiteId,
-                diag.HasStorageConn,
-                diag.HasTenant,
-                diag.HasClient,
-                diag.HasSecret,
-                Repo = diag.Repo,
-                Tried = diag.Tried,
-                Success = success,
-                Children = diag.Children
+                Input = new { code, path },
+                SiteId = siteId,
+                HasStorageConn = storageConn is not null,
+                HasTenant = tenantId is not null,
+                HasClient = clientId is not null,
+                HasSecret = clientSecret is not null,
+                Repo = repoDump ?? new { RowFound = false },
+                Tried = tried,
+                Success = new { path = effectivePath, count = childSummaries.Count, title },
+                Children = childSummaries,
+                Debug = dbg
             };
 
             res.StatusCode = HttpStatusCode.OK;
-            await res.WriteStringAsync(JsonSerializer.Serialize(final, new JsonSerializerOptions { WriteIndented = true }));
+            await res.WriteAsJsonAsync(output);
             return res;
+        }
+        catch (ServiceException sx)
+        {
+            var http = (int?)sx.ResponseStatusCode;
+            var err = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await err.WriteAsJsonAsync(new { Error = "Graph error", Http = http, Debug = dbg });
+            return err;
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "VideosInspect failed.");
-            res.StatusCode = HttpStatusCode.InternalServerError;
-            await res.WriteStringAsync("Internal Error");
-            return res;
+            var err = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await err.WriteAsJsonAsync(new { Error = ex.Message, Debug = dbg });
+            return err;
         }
     }
 
-    // ---------------- helpers ----------------
-
-    private static string? ReadString(TableEntity e, string name)
-        => e.TryGetValue(name, out var v) ? v?.ToString() : null;
-
-    private static int ReadIntFlexible(TableEntity e, string name, int def = 0)
-    {
-        if (!e.TryGetValue(name, out var v) || v is null) return def;
-        return v switch
-        {
-            int i => i,
-            long l => (int)l,
-            double d => (int)d,
-            string s when int.TryParse(s, out var n) => n,
-            _ => def
-        };
-    }
+    // ---------- helpers ----------
 
     private static List<string> BuildCandidates(string raw)
     {
-        var p = (raw ?? "").Replace("\\", "/").TrimStart('/');
+        var p = (raw ?? "").Replace("\\", "/").Trim();
+        p = p.TrimStart('/');
         var list = new List<string>();
         if (!string.IsNullOrWhiteSpace(p))
         {
@@ -257,8 +282,9 @@ public sealed class VideosInspect
 
     private static string EncodeSegments(string path)
     {
-        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries)
-                        .Select(Uri.EscapeDataString);
+        var parts = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i < parts.Length; i++)
+            parts[i] = Uri.EscapeDataString(parts[i]);
         return string.Join("/", parts);
     }
 }
