@@ -1,0 +1,231 @@
+﻿@page "/admin/customer-content"
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
+<h2 class="mt-4 mb-3">Customer Content — Admin</h2>
+
+<div class="d-flex gap-2 mb-3">
+    <button class="btn btn-primary" @onclick="GenerateCodeAsync">Generate New Code</button>
+    <button class="btn btn-outline-secondary" @onclick="SetApiKeyAsync" title="Local dev only">Set API Key…</button>
+</div>
+
+@if (error is not null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+@if (items is null)
+{
+    <p>Loading…</p>
+}
+else if (items.Count == 0)
+{
+    <p>No customer codes yet.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Display Name</th>
+                    <th>SharePath</th>
+                    <th>Keep (mo)</th>
+                    <th>Created</th>
+                    <th>Expires</th>
+                    <th>Status</th>
+                    <th>Link</th>
+                    <th style="width:140px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var it in items)
+                {
+                    <tr>
+                        <td><code>@it.Code</code></td>
+                        <td>
+                            <input class="form-control form-control-sm" @bind="it.DisplayName" />
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm" @bind="it.SharePath" placeholder="Shared Documents/... OR full SharePoint link" />
+                        </td>
+                        <td style="max-width:90px;">
+                            <input type="number" class="form-control form-control-sm" @bind="it.KeepAliveMonths" min="1" />
+                        </td>
+                        <td>@it.CreatedOn.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                        <td>@it.ExpiresOn?.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                        <td>
+                            @if (it.Active)
+                            {
+                                <span class="badge bg-success">Active</span>
+                            }
+                            else
+                            {
+
+                                <span class="badge bg-secondary">Expired</span>
+                            }
+                        </td>
+                        <td>
+                            <a href="@GetCodeLink(it.Code)" target="_blank">Open</a>
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-success me-1" @onclick="() => SaveAsync(it)">Save</button>
+                            <button class="btn btn-sm btn-outline-secondary me-1" @onclick="@(() => CopyCodeLink(it.Code))">Copy link</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(it)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<CustomerItem>? items;
+    private string? error;
+
+    private sealed class CustomerItem
+    {
+        public string Code { get; set; } = "";
+        public string? DisplayName { get; set; }
+        public string? SharePath { get; set; }
+        public int KeepAliveMonths { get; set; }
+        public DateTimeOffset CreatedOn { get; set; }
+        public DateTimeOffset? ExpiresOn { get; set; }
+        public bool Active { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        error = null;
+        try
+        {
+            items = await Http.GetFromJsonAsync<List<CustomerItem>>("/api/customer-content") ?? new();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load: {ex.Message}";
+            items = new();
+        }
+        StateHasChanged();
+    }
+
+    private async Task GenerateCodeAsync()
+    {
+        error = null;
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, "/api/customer-content/code")
+            {
+                Content = JsonContent.Create(new { DisplayName = (string?)null, KeepAliveMonths = 12 })
+            };
+            await AddApiKeyIfAnyAsync(req);
+            using var res = await Http.SendAsync(req);
+            if (!res.IsSuccessStatusCode)
+            {
+                error = $"Generate failed: {(int)res.StatusCode}";
+                return;
+            }
+            var created = await res.Content.ReadFromJsonAsync<CustomerItem>();
+            if (created != null)
+            {
+                items ??= new();
+                items.Insert(0, created);
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Generate failed: {ex.Message}";
+        }
+    }
+
+    private async Task SaveAsync(CustomerItem it)
+    {
+        error = null;
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, "/api/customer-content")
+            {
+                Content = JsonContent.Create(new { Code = it.Code, it.DisplayName, it.SharePath, it.KeepAliveMonths })
+            };
+            await AddApiKeyIfAnyAsync(req);
+            using var res = await Http.SendAsync(req);
+            if (!res.IsSuccessStatusCode)
+            {
+                error = $"Save failed: {(int)res.StatusCode}";
+                return;
+            }
+            await LoadAsync(); // refresh computed fields like Expires/Active
+        }
+        catch (Exception ex)
+        {
+            error = $"Save failed: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteAsync(CustomerItem it)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete code {it.Code}?")) return;
+
+        error = null;
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Delete, $"/api/customer-content/{it.Code}");
+            await AddApiKeyIfAnyAsync(req);
+            using var res = await Http.SendAsync(req);
+            if (!res.IsSuccessStatusCode)
+            {
+                error = $"Delete failed: {(int)res.StatusCode}";
+                return;
+            }
+            items?.Remove(it);
+        }
+        catch (Exception ex)
+        {
+            error = $"Delete failed: {ex.Message}";
+        }
+    }
+
+    // ----- Helpers to avoid Razor '$' parsing issues -----
+    private string GetCodeLink(string code) => $"/videos?code={code}";
+    private Task CopyCodeLink(string code) => CopyAsync(GetCodeLink(code));
+
+    private async Task CopyAsync(string relativeUrl)
+    {
+        try
+        {
+            var absolute = new Uri(new Uri(NavigationManager.BaseUri), relativeUrl).ToString();
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", absolute);
+        }
+        catch { /* ignore */ }
+    }
+
+    // --- Local dev helper: store x-api-key in sessionStorage and attach to requests ---
+    private async Task SetApiKeyAsync()
+    {
+        var key = await JS.InvokeAsync<string?>("prompt", "Enter x-api-key (local dev only):");
+        if (key is not null)
+        {
+            await JS.InvokeVoidAsync("sessionStorage.setItem", "adminApiKey", key);
+        }
+    }
+
+    private async Task AddApiKeyIfAnyAsync(HttpRequestMessage req)
+    {
+        try
+        {
+            var key = await JS.InvokeAsync<string?>("sessionStorage.getItem", "adminApiKey");
+            if (!string.IsNullOrWhiteSpace(key))
+                req.Headers.TryAddWithoutValidation("x-api-key", key);
+        }
+        catch { }
+    }
+}

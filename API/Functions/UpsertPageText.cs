@@ -4,9 +4,9 @@ using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using API.Services;
-using API.Security; // your StaticWebAppsAuth helper
+using API.Security;
 
-namespace API;
+namespace API.Functions;
 
 public class UpsertPageText
 {

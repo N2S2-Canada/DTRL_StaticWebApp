@@ -8,9 +8,9 @@ using Microsoft.Kiota.Abstractions.Serialization;
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Web; // for HttpUtility
-using API.Services; // ICustomerContentRepository
+using API.Services;
 
-namespace API
+namespace API.Functions
 {
     public class GetVideos
     {

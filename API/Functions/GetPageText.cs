@@ -4,7 +4,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using API.Services;
 
-namespace API;
+namespace API.Functions;
 
 public class GetPageText
 {
