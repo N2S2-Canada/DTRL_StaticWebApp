@@ -1,4 +1,6 @@
 ﻿@* Navigation menu *@
+@using Microsoft.AspNetCore.Components.Routing
+
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm fixed-top">
     <div class="container">
         <!-- Home Button / Logo -->
@@ -19,9 +21,19 @@
                 <li class="nav-item">
                     <a class="nav-link" href="/#services">Our Services</a>
                 </li>
+
                 <li class="nav-item">
-                    <a class="nav-link" href="/videos" Match="NavLinkMatch.All">Videos/Photos</a>
+                    <NavLink class="nav-link" href="/videos" Match="NavLinkMatch.All">
+                        Videos/Photos
+                    </NavLink>
                 </li>
+
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="/customer-content" Match="NavLinkMatch.All">
+                        Customer Content
+                    </NavLink>
+                </li>
+
                 <li class="nav-item">
                     <a class="nav-link" href="/#about">About Us</a>
                 </li>

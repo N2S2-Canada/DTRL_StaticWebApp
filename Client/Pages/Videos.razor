@@ -2,7 +2,7 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
 
-<h1>DiverseTech Robotics Media</h1>
+<h1>@(string.IsNullOrWhiteSpace(pageTitle) ? "DiverseTech Robotics Media" : pageTitle)</h1>
 
 <!-- Particle Canvas -->
 <canvas id="particleCanvas"></canvas>
@@ -84,16 +84,44 @@ else
 </div>
 
 @code {
+    [Parameter] 
+    [SupplyParameterFromQuery(Name = "code")] 
+    public string? code { get; set; }   // comes from ?code=ABCDE
+
     private List<Video>? videos;
+    private string? pageTitle;
+
     private bool modalIsVideo = false;
     private string modalImageUrl = "";
     private string modalVideoUrl = "";
     private IJSObjectReference? module;
     private IJSObjectReference? particlesModule;
 
-    protected override async Task OnInitializedAsync()
+    // Matches API response: { Title, Items }
+    private sealed class VideosResponse
     {
-        videos = await Http.GetFromJsonAsync<List<Video>>("/api/videos") ?? new List<Video>();
+        public string? Title { get; set; }
+        public List<Video>? Items { get; set; }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Build the API URL depending on whether a code was provided
+        var url = string.IsNullOrWhiteSpace(code)
+            ? "/api/videos"
+            : $"/api/videos?code={Uri.EscapeDataString(code)}";
+
+        try
+        {
+            var payload = await Http.GetFromJsonAsync<VideosResponse>(url);
+            pageTitle = payload?.Title;                     // null when browsing default library
+            videos = payload?.Items ?? new List<Video>();
+        }
+        catch
+        {
+            pageTitle = null;
+            videos = new List<Video>();
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -105,6 +133,7 @@ else
             await particlesModule.InvokeVoidAsync("startParticles");
         }
     }
+
     private async Task ShowModalAsync(string url, bool isVideo = false)
     {
         modalIsVideo = isVideo;

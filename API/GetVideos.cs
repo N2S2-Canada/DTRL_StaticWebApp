@@ -5,17 +5,22 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using Microsoft.Kiota.Abstractions.Serialization;
+using System.Net;
 using System.Text.RegularExpressions;
+using System.Web; // for HttpUtility
+using API.Services; // ICustomerContentRepository
 
 namespace API
 {
     public class GetVideos
     {
         private readonly ILogger<GetVideos> _logger;
+        private readonly ICustomerContentRepository _customerRepo;
 
-        public GetVideos(ILogger<GetVideos> logger)
+        public GetVideos(ILogger<GetVideos> logger, ICustomerContentRepository customerRepo)
         {
             _logger = logger;
+            _customerRepo = customerRepo;
         }
 
         private static string ToFriendlyName(string rawName)
@@ -26,12 +31,18 @@ namespace API
             withSpaces = Regex.Replace(withSpaces, @"\b(final|draft|copy|edit|v\d+|\d{2,})\b", "", RegexOptions.IgnoreCase);
             withSpaces = Regex.Replace(withSpaces, @"\s+", " ").Trim();
 
-            return Regex.Replace(withSpaces, @"\b\w+\b", match =>
+            return Regex.Replace(withSpaces, @"\b\w+\b", m =>
             {
-                var word = match.Value;
+                var word = m.Value;
                 if (word.ToUpperInvariant() == word) return word; // preserve acronyms
-                return char.ToUpper(word[0]) + word.Substring(1).ToLower();
+                return char.ToUpper(word[0]) + word[1..].ToLower();
             });
+        }
+
+        private sealed class VideosResponse
+        {
+            public string? Title { get; set; }
+            public List<SharedModels.Video> Items { get; set; } = new();
         }
 
         [Function("GetVideos")]
@@ -39,15 +50,44 @@ namespace API
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "videos")] HttpRequestData req,
             FunctionContext context)
         {
-            var response = req.CreateResponse();
+            var res = req.CreateResponse();
 
             try
             {
+                // Optional ?code=ABCDE
+                var q = HttpUtility.ParseQueryString(req.Url.Query);
+                var code = q["code"];
+
                 var tenantId = Environment.GetEnvironmentVariable("TenantId");
                 var clientId = Environment.GetEnvironmentVariable("ClientId");
                 var clientSecret = Environment.GetEnvironmentVariable("ClientSecret");
                 var siteId = Environment.GetEnvironmentVariable("SiteId");
-                var folderPath = Environment.GetEnvironmentVariable("FolderPath");
+                var defaultFolderPath = Environment.GetEnvironmentVariable("FolderPath");
+
+                string folderPath = defaultFolderPath ?? string.Empty;
+                string? displayName = null;
+
+                if (!string.IsNullOrWhiteSpace(code))
+                {
+                    // 5-char alphanumeric validation
+                    if (!Regex.IsMatch(code, "^[A-Za-z0-9]{5}$"))
+                    {
+                        var bad = req.CreateResponse(HttpStatusCode.BadRequest);
+                        await bad.WriteStringAsync("Invalid code format.");
+                        return bad;
+                    }
+
+                    var match = await _customerRepo.GetByCodeAsync(code, req.FunctionContext.CancellationToken);
+                    if (match is null || string.IsNullOrWhiteSpace(match.SharePath))
+                    {
+                        var notFound = req.CreateResponse(HttpStatusCode.NotFound);
+                        await notFound.WriteStringAsync("This code is invalid or has expired.");
+                        return notFound;
+                    }
+
+                    folderPath = match.SharePath;
+                    displayName = string.IsNullOrWhiteSpace(match.DisplayName) ? null : match.DisplayName;
+                }
 
                 var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
                 var graphClient = new GraphServiceClient(credential, new[] { "https://graph.microsoft.com/.default" });
@@ -56,18 +96,18 @@ namespace API
                 if (drive == null)
                 {
                     _logger.LogError("Drive not found for siteId: {SiteId}", siteId);
-                    response.StatusCode = System.Net.HttpStatusCode.InternalServerError;
-                    await response.WriteStringAsync("Drive not found.");
-                    return response;
+                    res.StatusCode = HttpStatusCode.InternalServerError;
+                    await res.WriteStringAsync("Drive not found.");
+                    return res;
                 }
 
                 var folder = await graphClient.Drives[drive.Id!].Root.ItemWithPath(folderPath).GetAsync();
                 if (folder == null)
                 {
-                    _logger.LogError("Folder not found at path: {FolderPath}", folderPath);
-                    response.StatusCode = System.Net.HttpStatusCode.InternalServerError;
-                    await response.WriteStringAsync("Folder not found.");
-                    return response;
+                    _logger.LogWarning("Folder not found at path: {FolderPath}", folderPath);
+                    res.StatusCode = HttpStatusCode.NotFound;
+                    await res.WriteStringAsync("Folder not found.");
+                    return res;
                 }
 
                 var items = await graphClient.Drives[drive.Id].Items[folder.Id].Children.GetAsync(rc =>
@@ -76,7 +116,7 @@ namespace API
                 });
 
                 var allowedVideoExtensions = new[] { ".mp4" };
-                var allowedPhotoExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif" };
+                var allowedPhotoExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
 
                 var videoTasks = (items?.Value ?? Enumerable.Empty<DriveItem>())
                     .Where(i => i?.File != null && i?.Name != null &&
@@ -108,7 +148,7 @@ namespace API
                         var extension = Path.GetExtension(i.Name ?? string.Empty).ToLowerInvariant();
                         var isVideo = allowedVideoExtensions.Contains(extension);
 
-                        // Use download URL if available
+                        // Prefer the one-time download URL if available
                         string? mediaUrl = i.AdditionalData != null && i.AdditionalData.TryGetValue("@microsoft.graph.downloadUrl", out var downloadUrl)
                             ? downloadUrl?.ToString() ?? i.WebUrl
                             : i.WebUrl;
@@ -120,12 +160,11 @@ namespace API
                             try
                             {
                                 var thumbs = await graphClient.Drives[drive.Id].Items[i.Id].Thumbnails.GetAsync();
-                                // Use the LARGE thumbnail if available
                                 thumbnailUrl = thumbs?.Value?.FirstOrDefault()?.Large?.Url ?? mediaUrl ?? string.Empty;
                             }
                             catch
                             {
-                                thumbnailUrl = mediaUrl ?? string.Empty; // fallback
+                                thumbnailUrl = mediaUrl ?? string.Empty;
                             }
                         }
 
@@ -133,7 +172,7 @@ namespace API
                         {
                             Name = ToFriendlyName(Path.GetFileNameWithoutExtension(i.Name ?? string.Empty)),
                             Url = mediaUrl,
-                            ThumbnailUrl = thumbnailUrl ?? string.Empty,
+                            ThumbnailUrl = thumbnailUrl,
                             Categories = categories,
                             IsVideo = isVideo
                         };
@@ -141,16 +180,20 @@ namespace API
 
                 var videos = await Task.WhenAll(videoTasks);
 
-                response.StatusCode = System.Net.HttpStatusCode.OK;
-                await response.WriteAsJsonAsync(videos);
-                return response;
+                res.StatusCode = HttpStatusCode.OK;
+                await res.WriteAsJsonAsync(new VideosResponse
+                {
+                    Title = displayName,  // null when browsing the default folder
+                    Items = videos.ToList()
+                });
+                return res;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to fetch videos or photos from SharePoint.");
-                response.StatusCode = System.Net.HttpStatusCode.InternalServerError;
-                await response.WriteStringAsync("Error fetching videos/photos.");
-                return response;
+                _logger.LogError(ex, "Failed to fetch videos/photos from SharePoint.");
+                res.StatusCode = HttpStatusCode.InternalServerError;
+                await res.WriteStringAsync("Error fetching videos/photos.");
+                return res;
             }
         }
     }

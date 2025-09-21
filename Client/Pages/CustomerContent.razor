@@ -1,0 +1,81 @@
+﻿@page "/customer-content"
+@using System.Linq
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<style>
+    /* Keep any background canvas from blocking input */
+    #particleCanvas {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .content-layer {
+        position: relative;
+        z-index: 2;
+    }
+</style>
+
+<div class="container content-layer py-5">
+    <h2 class="mb-3 text-center">Customer Content</h2>
+    <p class="text-center text-muted">Enter the 5-character code we emailed you.</p>
+
+    <form class="mx-auto" style="max-width:480px" @onsubmit="OnSubmit">
+        <div class="input-group input-group-lg my-3">
+            <input class="form-control"
+                   placeholder="e.g. A3K9Z"
+                   maxlength="5"
+                   @bind="code"
+                   @bind:event="oninput"
+                   aria-label="Access code" />
+            <button class="btn btn-primary" type="submit" disabled="@(!IsValid(code))">
+                Get Content
+            </button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(error))
+        {
+            <div class="alert alert-danger mt-3" role="alert">@error</div>
+        }
+    </form>
+</div>
+
+@code {
+    private string? code;
+    private string? error;
+
+    private bool IsValid(string? c) =>
+        !string.IsNullOrWhiteSpace(c) &&
+        c.Length == 5 &&
+        c.All(char.IsLetterOrDigit);
+
+    private Task OnSubmit()
+    {
+        error = null;
+        var c = (code ?? "").Trim();
+
+        if (!IsValid(c))
+        {
+            error = "Please enter a valid 5-character alphanumeric code.";
+            return Task.CompletedTask;
+        }
+
+        // Navigate to the media page for this code
+        Nav.NavigateTo($"/videos?code={Uri.EscapeDataString(c)}", forceLoad: true);
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // If a Bootstrap modal backdrop was left behind, remove it so inputs are clickable.
+            await JS.InvokeVoidAsync("eval", @"
+                document.body.classList.remove('modal-open');
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            ");
+        }
+    }
+}
