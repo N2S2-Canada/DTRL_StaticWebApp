@@ -20,23 +20,23 @@
       "allowedRoles": [ "admin" ]
     },
     {
-      "route": "/login",
-      "rewrite": "/login.html"
-    },
-    {
       "route": "/api/customer-content",
       "methods": [ "GET", "POST" ],
-      "allowedRoles": [ "admin" ]
-    },
-    {
-      "route": "/api/customer-content/*",
-      "methods": [ "DELETE", "POST", "GET" ],
       "allowedRoles": [ "admin" ]
     },
     {
       "route": "/api/customer-content/purge",
       "methods": [ "POST" ],
       "allowedRoles": [ "admin" ]
+    },
+    {
+      "route": "/api/customer-content/*",
+      "methods": [ "DELETE" ],
+      "allowedRoles": [ "admin" ]
+    },
+    {
+      "route": "/login",
+      "rewrite": "/login.html"
     }
   ],
   "navigationFallback": { "rewrite": "index.html" },
