@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿// API/Functions/VideosInspect.cs
+using System.Net;
 using System.Text.RegularExpressions;
 using System.Web;
 using Azure.Identity;
@@ -11,7 +12,7 @@ using API.Services;
 
 namespace API.Functions
 {
-    public class VideosInspect
+    public sealed class VideosInspect
     {
         private readonly ILogger<VideosInspect> _log;
         private readonly ICustomerContentRepository _repo;
@@ -32,27 +33,34 @@ namespace API.Functions
 
         private sealed class InspectResponse
         {
-            public object Input { get; set; } = new { };
+            public InputDto Input { get; set; } = new();
             public string? SiteId { get; set; }
             public bool HasStorageConn { get; set; }
             public bool HasTenant { get; set; }
             public bool HasClient { get; set; }
             public bool HasSecret { get; set; }
             public string RepoLookup { get; set; } = "skipped";
+            public RepoEntity? RepoEntity { get; set; }
             public string? SharePath { get; set; }
             public List<TryResult> Tried { get; set; } = new();
-            public object? Success { get; set; }
-            public List<object> Children { get; set; } = new();
+            public SuccessDto? Success { get; set; }
+            public List<ChildDto> Children { get; set; } = new();
         }
+
+        private sealed class InputDto { public string? code { get; set; } public string? path { get; set; } }
+        private sealed class RepoEntity { public string? Code { get; set; } public string? DisplayName { get; set; } public string? SharePath { get; set; } public int? KeepAliveMonths { get; set; } }
+        private sealed class SuccessDto { public string Path { get; set; } = ""; public int Count { get; set; } public string? Title { get; set; } }
+        private sealed class ChildDto { public string? Name { get; set; } public string? WebUrl { get; set; } public bool IsFile { get; set; } public string? Ext { get; set; } }
 
         [Function("VideosInspect")]
         public async Task<HttpResponseData> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "videos/inspect")] HttpRequestData req,
             FunctionContext ctx)
         {
-            var query = HttpUtility.ParseQueryString(req.Url.Query);
-            var code = query["code"];
-            var path = query["path"];
+            var res = req.CreateResponse();
+            var q = HttpUtility.ParseQueryString(req.Url.Query);
+            var code = q["code"];
+            var path = q["path"];
 
             var siteId = Environment.GetEnvironmentVariable("SiteId");
             var tenantId = Environment.GetEnvironmentVariable("TenantId");
@@ -62,7 +70,7 @@ namespace API.Functions
 
             var payload = new InspectResponse
             {
-                Input = new { code, path },
+                Input = new InputDto { code = code, path = path },
                 SiteId = siteId,
                 HasStorageConn =
                     !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("StorageConnectionString")
@@ -76,7 +84,7 @@ namespace API.Functions
             string sharePath = path ?? defaultPath;
             string? displayName = null;
 
-            // --- Optional: code lookup (diagnose table path) ---
+            // ---- Table lookup (only if code was supplied) ----
             if (!string.IsNullOrWhiteSpace(code))
             {
                 var norm = code.Trim().ToUpperInvariant();
@@ -89,8 +97,8 @@ namespace API.Functions
 
                 try
                 {
-                    var match = await _repo.GetByCodeAsync(norm, ctx.CancellationToken);
-                    if (match is null || string.IsNullOrWhiteSpace(match.SharePath))
+                    var row = await _repo.GetByCodeAsync(norm, ctx.CancellationToken);
+                    if (row == null || string.IsNullOrWhiteSpace(row.SharePath))
                     {
                         payload.RepoLookup = "not-found";
                         var nf = req.CreateResponse(HttpStatusCode.NotFound);
@@ -99,24 +107,33 @@ namespace API.Functions
                     }
 
                     payload.RepoLookup = "ok";
-                    sharePath = match.SharePath!;
-                    displayName = match.DisplayName;
+                    payload.RepoEntity = new RepoEntity
+                    {
+                        Code = norm,
+                        DisplayName = string.IsNullOrWhiteSpace(row.DisplayName) ? null : row.DisplayName,
+                        SharePath = row.SharePath,
+                        KeepAliveMonths = row.KeepAliveMonths
+                    };
+
+                    sharePath = row.SharePath!;
+                    displayName = row.DisplayName;
                     payload.SharePath = sharePath;
                 }
                 catch (Exception ex)
                 {
-                    payload.RepoLookup = "exception: " + ex.GetType().Name;
+                    // If repo throws in prod, we report it (NOT 500)
+                    payload.RepoLookup = "exception: " + ex.GetType().Name + " - " + ex.Message;
                     var nf = req.CreateResponse(HttpStatusCode.NotFound);
                     await nf.WriteAsJsonAsync(payload);
                     return nf;
                 }
             }
 
+            // ---- Graph probe for the resolved path (or default) ----
             try
             {
                 var cred = new ClientSecretCredential(tenantId, clientId, clientSecret);
                 var graph = new GraphServiceClient(cred, new[] { "https://graph.microsoft.com/.default" });
-
                 var drive = await graph.Sites[siteId].Drive.GetAsync();
 
                 var seeds = BuildCandidates(sharePath);
@@ -130,17 +147,11 @@ namespace API.Functions
                         var folder = await graph.Drives[drive!.Id!].Root.ItemWithPath(c).GetAsync();
                         var children = await graph.Drives[drive.Id].Items[folder.Id].Children.GetAsync();
 
-                        payload.Tried.Add(new TryResult
-                        {
-                            Path = c,
-                            Http = 200,
-                            ChildrenCount = children?.Value?.Count
-                        });
+                        payload.Tried.Add(new TryResult { Path = c, Http = 200, ChildrenCount = children?.Value?.Count });
 
-                        payload.Success = new { path = c, count = children?.Value?.Count ?? 0, title = displayName };
+                        payload.Success = new SuccessDto { Path = c, Count = children?.Value?.Count ?? 0, Title = displayName };
                         payload.Children = (children?.Value ?? new List<DriveItem>())
-                            .Select(d => new { d.Name, d.WebUrl, IsFile = d.File != null, Ext = d.File?.MimeType })
-                            .Cast<object>()
+                            .Select(d => new ChildDto { Name = d.Name, WebUrl = d.WebUrl, IsFile = d.File != null, Ext = d.File?.MimeType })
                             .ToList();
 
                         var ok = req.CreateResponse(HttpStatusCode.OK);
@@ -149,27 +160,16 @@ namespace API.Functions
                     }
                     catch (ServiceException sx)
                     {
-                        payload.Tried.Add(new TryResult
-                        {
-                            Path = c,
-                            Http = (int?)sx.ResponseStatusCode,
-                            Error = sx.Message
-                        });
-                        // try next
+                        payload.Tried.Add(new TryResult { Path = c, Http = (int?)sx.ResponseStatusCode, Error = sx.Message });
+                        // try next candidate
                     }
                     catch (Exception ex)
                     {
-                        payload.Tried.Add(new TryResult
-                        {
-                            Path = c,
-                            Http = null,
-                            Error = ex.Message
-                        });
-                        // try next
+                        payload.Tried.Add(new TryResult { Path = c, Error = ex.Message });
+                        // try next candidate
                     }
                 }
 
-                // None worked
                 var notFound = req.CreateResponse(HttpStatusCode.NotFound);
                 await notFound.WriteAsJsonAsync(payload);
                 return notFound;
