@@ -1,3 +1,9 @@
+// API/Functions/GetVideos.cs
+using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Web; // HttpUtility
+using API.Services;
 using Azure.Identity;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -5,10 +11,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using Microsoft.Kiota.Abstractions.Serialization;
-using System.Net;
-using System.Text.RegularExpressions;
-using System.Web; // for HttpUtility
-using API.Services;
 
 namespace API.Functions
 {
@@ -69,7 +71,6 @@ namespace API.Functions
 
                 if (!string.IsNullOrWhiteSpace(code))
                 {
-                    // 5-char alphanumeric validation
                     if (!Regex.IsMatch(code, "^[A-Za-z0-9]{5}$"))
                     {
                         var bad = req.CreateResponse(HttpStatusCode.BadRequest);
@@ -85,40 +86,112 @@ namespace API.Functions
                         return notFound;
                     }
 
-                    folderPath = match.SharePath;
+                    folderPath = match.SharePath.Trim();
                     displayName = string.IsNullOrWhiteSpace(match.DisplayName) ? null : match.DisplayName;
                 }
 
                 var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
                 var graphClient = new GraphServiceClient(credential, new[] { "https://graph.microsoft.com/.default" });
 
-                var drive = await graphClient.Sites[siteId].Drive.GetAsync();
-                if (drive == null)
-                {
-                    _logger.LogError("Drive not found for siteId: {SiteId}", siteId);
-                    res.StatusCode = HttpStatusCode.InternalServerError;
-                    await res.WriteStringAsync("Drive not found.");
-                    return res;
-                }
+                List<DriveItem> children;
 
-                var folder = await graphClient.Drives[drive.Id!].Root.ItemWithPath(folderPath).GetAsync();
-                if (folder == null)
+                if (!string.IsNullOrWhiteSpace(folderPath) &&
+                    folderPath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.LogWarning("Folder not found at path: {FolderPath}", folderPath);
-                    res.StatusCode = HttpStatusCode.NotFound;
-                    await res.WriteStringAsync("Folder not found.");
-                    return res;
-                }
+                    // Sharing link path
+                    var urlSafe = Convert.ToBase64String(Encoding.UTF8.GetBytes(folderPath))
+                        .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+                    var shareId = "u!" + urlSafe;
 
-                var items = await graphClient.Drives[drive.Id].Items[folder.Id].Children.GetAsync(rc =>
+                    var sharedItem = await graphClient.Shares[shareId].DriveItem.GetAsync();
+                    if (sharedItem is null)
+                    {
+                        var nf = req.CreateResponse(HttpStatusCode.NotFound);
+                        await nf.WriteStringAsync("Shared item not found.");
+                        return nf;
+                    }
+
+                    if (sharedItem.Folder is null)
+                    {
+                        children = new List<DriveItem> { sharedItem }; // single file link
+                    }
+                    else
+                    {
+                        var driveId = sharedItem.ParentReference?.DriveId
+                                      ?? throw new InvalidOperationException("Missing DriveId on shared item");
+                        var folderId = sharedItem.Id!;
+                        var resChildren = await graphClient.Drives[driveId].Items[folderId].Children.GetAsync(rc =>
+                        {
+                            rc.QueryParameters.Expand = new[] { "listItem" };
+                        });
+                        children = resChildren?.Value?.ToList() ?? new List<DriveItem>();
+                    }
+                }
+                else
                 {
-                    rc.QueryParameters.Expand = new[] { "listItem" };
-                });
+                    // Library-relative path
+                    var drive = await graphClient.Sites[siteId].Drive.GetAsync();
+                    if (drive == null)
+                    {
+                        _logger.LogError("Drive not found for siteId: {SiteId}", siteId);
+                        res.StatusCode = HttpStatusCode.InternalServerError;
+                        await res.WriteStringAsync("Drive not found.");
+                        return res;
+                    }
+
+                    DriveItem? folder = null;
+                    string? tried1 = null, tried2 = null;
+
+                    // Normalize path
+                    var candidate = (folderPath ?? "").Replace('\\', '/').Trim().Trim('/');
+
+                    // Try as given
+                    tried1 = candidate;
+                    try
+                    {
+                        folder = string.IsNullOrEmpty(candidate)
+                            ? await graphClient.Drives[drive.Id!].Root.GetAsync()
+                            : await graphClient.Drives[drive.Id!].Root.ItemWithPath(candidate).GetAsync();
+                    }
+                    catch (Exception ex1)
+                    {
+                        _logger.LogWarning(ex1, "ItemWithPath failed for '{Path}' (first attempt).", tried1);
+                    }
+
+                    // If not found, try with "Shared Documents/" prefix
+                    if (folder is null && !string.IsNullOrEmpty(candidate) &&
+                        !candidate.StartsWith("Shared Documents/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        tried2 = $"Shared Documents/{candidate}";
+                        try
+                        {
+                            folder = await graphClient.Drives[drive.Id!].Root.ItemWithPath(tried2).GetAsync();
+                        }
+                        catch (Exception ex2)
+                        {
+                            _logger.LogWarning(ex2, "ItemWithPath failed for '{Path}' (fallback attempt).", tried2);
+                        }
+                    }
+
+                    if (folder is null)
+                    {
+                        var nf = req.CreateResponse(HttpStatusCode.NotFound);
+                        await nf.WriteStringAsync("Folder not found.");
+                        _logger.LogWarning("Folder not found. Tried: '{T1}' and '{T2}'.", tried1, tried2);
+                        return nf;
+                    }
+
+                    var resChildren = await graphClient.Drives[drive.Id].Items[folder.Id].Children.GetAsync(rc =>
+                    {
+                        rc.QueryParameters.Expand = new[] { "listItem" };
+                    });
+                    children = resChildren?.Value?.ToList() ?? new List<DriveItem>();
+                }
 
                 var allowedVideoExtensions = new[] { ".mp4" };
                 var allowedPhotoExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
 
-                var videoTasks = (items?.Value ?? Enumerable.Empty<DriveItem>())
+                var videoTasks = (children ?? new List<DriveItem>())
                     .Where(i => i?.File != null && i?.Name != null &&
                            (allowedVideoExtensions.Contains(Path.GetExtension(i.Name), StringComparer.OrdinalIgnoreCase) ||
                             allowedPhotoExtensions.Contains(Path.GetExtension(i.Name), StringComparer.OrdinalIgnoreCase)))
@@ -140,7 +213,8 @@ namespace API.Functions
                                     break;
 
                                 case UntypedString untypedString:
-                                    categories.Add(untypedString.GetValue() ?? string.Empty);
+                                    var s = untypedString.GetValue() ?? string.Empty;
+                                    if (!string.IsNullOrWhiteSpace(s)) categories.Add(s);
                                     break;
                             }
                         }
@@ -148,7 +222,6 @@ namespace API.Functions
                         var extension = Path.GetExtension(i.Name ?? string.Empty).ToLowerInvariant();
                         var isVideo = allowedVideoExtensions.Contains(extension);
 
-                        // Prefer the one-time download URL if available
                         string? mediaUrl = i.AdditionalData != null && i.AdditionalData.TryGetValue("@microsoft.graph.downloadUrl", out var downloadUrl)
                             ? downloadUrl?.ToString() ?? i.WebUrl
                             : i.WebUrl;
@@ -159,7 +232,8 @@ namespace API.Functions
                         {
                             try
                             {
-                                var thumbs = await graphClient.Drives[drive.Id].Items[i.Id].Thumbnails.GetAsync();
+                                var driveIdForItem = i.ParentReference?.DriveId!;
+                                var thumbs = await graphClient.Drives[driveIdForItem].Items[i.Id].Thumbnails.GetAsync();
                                 thumbnailUrl = thumbs?.Value?.FirstOrDefault()?.Large?.Url ?? mediaUrl ?? string.Empty;
                             }
                             catch
