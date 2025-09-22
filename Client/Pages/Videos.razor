@@ -1,4 +1,4 @@
-@page "/videos"
+﻿@page "/videos"
 @inject HttpClient Http
 @inject IJSRuntime JS
 
@@ -17,40 +17,109 @@ else if (videos.Count == 0)
 }
 else
 {
+    <!-- Filter toolbar -->
+    <div class="container px-0 mb-3" style="position: relative; z-index:1;">
+        <div class="d-flex flex-wrap align-items-center gap-2 filterbar @(selectedCategories.Count > 0 ? "has-active-filters" : null)">
+            <span class="text-body-secondary">Filter by category:</span>
+
+            @foreach (var cat in allCategories)
+            {
+                var isOn = selectedCategories.Contains(cat);
+                <span class="badge rounded-pill filter-chip border border-dark @GetCategoryClasses(cat) @(isOn ? "active" : "")"
+                      role="button" tabindex="0"
+                      aria-pressed="@(isOn ? "true" : "false")"
+                      title="@(isOn ? $"Remove filter: {cat}" : $"Filter: {cat}")"
+                      @onclick='() => ToggleCategory(cat)'
+                      @onkeydown='(KeyboardEventArgs e) => { if (e.Key == "Enter" || e.Key == " ") ToggleCategory(cat); }'>
+
+                    <span class="chip-check" aria-hidden="true">✓</span>
+                    <span class="chip-label">@cat</span>
+                </span>
+            }
+
+            <div class="ms-auto d-flex align-items-center gap-2">
+                @if (selectedCategories.Count > 0)
+                {
+                    <span class="badge bg-primary-subtle text-dark border">Selected @selectedCategories.Count</span>
+                }
+                <button class="btn btn-sm btn-outline-secondary"
+                        @onclick="ClearFilters"
+                        disabled="@(selectedCategories.Count == 0)">
+                    Clear
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div style="position: relative; z-index:1;">
-        @foreach (var group in videos
-            .Where(v => v.Categories.Any())
+        @foreach (var group in filteredVideos
+            .Where(v => v.Categories != null && v.Categories.Any())
             .GroupBy(v => v.Categories.First())
             .OrderBy(g => g.Key))
         {
+            if (!group.Any())
+            {
+                continue;
+            }
+
             <h4 class="mt-4">@group.Key</h4>
             <div class="row g-3">
                 @foreach (var item in group)
                 {
                     <div class="col-sm-6 col-md-4 col-lg-3">
                         <div class="card h-100 shadow-sm card-hover-lift">
+
                             @if (item.IsVideo)
                             {
-                                <div class="video-thumbnail-wrapper" @onclick="() => ShowModalAsync(item.Url!, true)">
-                                    <img src="@item.ThumbnailUrl" class="card-img-top media-photo" alt="@item.Name" />
+                                <div class="video-thumbnail-wrapper ratio ratio-16x9 rounded-top"
+                                     role="button" tabindex="0"
+                                     @onclick='() => ShowModalAsync(item.Url!, true)'
+                                     @onkeydown='(KeyboardEventArgs e) => { if (e.Key == "Enter" || e.Key == " ") ShowModalAsync(item.Url!, true); }'>
+                                    <img alt="@item.Name"
+                                         class="media-photo"
+                                         loading="lazy"
+                                         decoding="async"
+                                         src="@ThumbSrc(item)"
+                                         srcset="@ThumbSrcSet(item)"
+                                         sizes="(min-width: 1200px) 25vw,
+                                                               (min-width: 992px)  33vw,
+                                                               (min-width: 576px)  50vw,
+                                                               100vw" />
                                     <span class="play-icon">&#9658;</span>
                                 </div>
                             }
                             else
                             {
-                                <img src="@item.Url" class="card-img-top media-photo" alt="@item.Name"
-                                     @onclick="() => ShowModalAsync(item.Url!)" />
+                                <div class="video-thumbnail-wrapper ratio ratio-16x9 rounded-top"
+                                     role="button" tabindex="0"
+                                     @onclick='() => ShowModalAsync(item.Url!)'
+                                     @onkeydown='(KeyboardEventArgs e) => { if (e.Key == "Enter" || e.Key == " ") ShowModalAsync(item.Url!); }'>
+                                    <img alt="@item.Name"
+                                         class="media-photo"
+                                         loading="lazy"
+                                         decoding="async"
+                                         src="@ThumbSrc(item)"
+                                         srcset="@ThumbSrcSet(item)"
+                                         sizes="(min-width: 1200px) 25vw,
+                                                               (min-width: 992px)  33vw,
+                                                               (min-width: 576px)  50vw,
+                                                               100vw" />
+                                </div>
                             }
 
                             <div class="card-body d-flex flex-column">
                                 <h5 class="card-title mb-2">@item.Name</h5>
                                 <div class="mb-2">
-                                    @foreach (var category in item.Categories)
+                                    @if (item.Categories != null)
                                     {
-                                        <span class="badge @GetCategoryClasses(category) border border-dark rounded-pill me-1 category-badge">@category</span>
+                                        @foreach (var category in item.Categories)
+                                        {
+                                            <span class="badge @GetCategoryClasses(category) border border-dark rounded-pill me-1 category-badge">@category</span>
+                                        }
                                     }
                                 </div>
                             </div>
+
                         </div>
                     </div>
                 }
@@ -69,7 +138,7 @@ else
             <div class="modal-body text-center">
                 @if (modalIsVideo)
                 {
-                    <video controls autoplay class="img-fluid">
+                    <video controls playsinline preload="metadata" class="img-fluid">
                         <source src="@modalVideoUrl" type="video/mp4" />
                         Your browser does not support the video tag.
                     </video>
@@ -84,11 +153,12 @@ else
 </div>
 
 @code {
-    [Parameter] 
-    [SupplyParameterFromQuery(Name = "cust_code")] 
-    public string? customerCode { get; set; }   // comes from ?code=ABCDE
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "cust_code")]
+    public string? customerCode { get; set; }   // ?cust_code=ABCDE
 
-    private List<Video>? videos;
+    private List<SharedModels.Video>? videos;
+    private List<SharedModels.Video> filteredVideos = new();
     private string? pageTitle;
 
     private bool modalIsVideo = false;
@@ -97,16 +167,18 @@ else
     private IJSObjectReference? module;
     private IJSObjectReference? particlesModule;
 
-    // Matches API response: { Title, Items }
+    // Category filtering state
+    private readonly HashSet<string> selectedCategories = new(StringComparer.OrdinalIgnoreCase);
+    private List<string> allCategories = new();
+
     private sealed class VideosResponse
     {
         public string? Title { get; set; }
-        public List<Video>? Items { get; set; }
+        public List<SharedModels.Video>? Items { get; set; }
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        // Build the API URL depending on whether a code was provided
         var url = string.IsNullOrWhiteSpace(customerCode)
             ? "/api/videos"
             : $"/api/videos?cust_code={Uri.EscapeDataString(customerCode)}";
@@ -114,13 +186,27 @@ else
         try
         {
             var payload = await Http.GetFromJsonAsync<VideosResponse>(url);
-            pageTitle = payload?.Title;                     // null when browsing default library
-            videos = payload?.Items ?? new List<Video>();
+            pageTitle = payload?.Title;
+            videos = payload?.Items ?? new List<SharedModels.Video>();
+
+            // Build the category list (distinct, case-insensitive, sorted)
+            allCategories = videos
+                .SelectMany(v => v.Categories ?? Array.Empty<string>())
+                .Select(c => c?.Trim())
+                .Where(c => !string.IsNullOrWhiteSpace(c))
+                .Cast<string>() // Ensures only non-null strings are included
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            ApplyCategoryFilter();
         }
         catch
         {
             pageTitle = null;
-            videos = new List<Video>();
+            videos = new List<SharedModels.Video>();
+            allCategories = new();
+            filteredVideos = new();
         }
     }
 
@@ -137,17 +223,8 @@ else
     private async Task ShowModalAsync(string url, bool isVideo = false)
     {
         modalIsVideo = isVideo;
-
-        if (isVideo)
-        {
-            modalVideoUrl = url;
-            modalImageUrl = "";
-        }
-        else
-        {
-            modalImageUrl = url;
-            modalVideoUrl = "";
-        }
+        if (isVideo) { modalVideoUrl = url; modalImageUrl = ""; }
+        else { modalImageUrl = url; modalVideoUrl = ""; }
 
         if (module != null)
             await module.InvokeVoidAsync("showModal");
@@ -187,5 +264,49 @@ else
 
         var key = category.Trim().ToLowerInvariant();
         return CategoryClasses.TryGetValue(key, out var css) ? css : "bg-secondary text-white";
+    }
+
+    // ---------- Filtering ----------
+    private void ToggleCategory(string cat)
+    {
+        if (selectedCategories.Contains(cat)) selectedCategories.Remove(cat);
+        else selectedCategories.Add(cat);
+        ApplyCategoryFilter();
+    }
+
+    private void ClearFilters()
+    {
+        selectedCategories.Clear();
+        ApplyCategoryFilter();
+    }
+
+    private void ApplyCategoryFilter()
+    {
+        if (videos is null) { filteredVideos = new(); return; }
+
+        if (selectedCategories.Count == 0)
+        {
+            filteredVideos = videos
+                .Where(v => v.Categories != null && v.Categories.Any())
+                .ToList();
+            return;
+        }
+
+        filteredVideos = videos
+            .Where(v => v.Categories != null && v.Categories.Any(c => selectedCategories.Contains(c)))
+            .ToList();
+    }
+
+    // ---------- Thumbnail helpers ----------
+    private static string ThumbSrc(SharedModels.Video v)
+        => v.ThumbnailSmall ?? v.ThumbnailMedium ?? v.ThumbnailLarge ?? v.ThumbnailUrl ?? v.Url ?? "";
+
+    private static string ThumbSrcSet(SharedModels.Video v)
+    {
+        var parts = new List<string>(3);
+        if (!string.IsNullOrWhiteSpace(v.ThumbnailSmall)) parts.Add($"{v.ThumbnailSmall} 320w");
+        if (!string.IsNullOrWhiteSpace(v.ThumbnailMedium)) parts.Add($"{v.ThumbnailMedium} 640w");
+        if (!string.IsNullOrWhiteSpace(v.ThumbnailLarge)) parts.Add($"{v.ThumbnailLarge} 896w");
+        return string.Join(", ", parts);
     }
 }

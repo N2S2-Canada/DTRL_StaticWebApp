@@ -119,6 +119,10 @@ code {
 /* =========================
    Media Photo / Thumbnail
    ========================= */
+.media-thumb {
+    object-fit: cover;
+}
+
 .media-photo {
     width: 100%;
     height: 180px;
@@ -132,12 +136,21 @@ code {
         transform: scale(1.03);
     }
 
-/* Video thumbnail wrapper */
+/* Video thumbnail wrapper — compatible with Bootstrap .ratio */
 .video-thumbnail-wrapper {
-    position: relative;
-    display: inline-block;
+    display: block; /* was inline-block; block works better with .ratio */
+    width: 100%;
+    position: relative; /* .ratio also uses relative; this is fine */
     cursor: pointer;
+    overflow: hidden; /* keeps hover zoom tidy */
 }
+
+    .video-thumbnail-wrapper .media-photo {
+        height: 100% !important; /* override the global 180px inside ratio box */
+        width: 100%;
+        object-fit: cover;
+        border-radius: 0; /* wrapper/card controls rounding */
+    }
 
 /* Play icon overlay */
 .play-icon {
@@ -179,7 +192,7 @@ code {
     }
 
 /* =========================
-   Category Badges with Pulse
+   Category Badges with Pulse (for badges on cards)
    ========================= */
 .category-badge {
     border: 1px solid rgba(0,0,0,0.7);
@@ -212,6 +225,58 @@ code {
         border-color: rgba(0,200,255,0.5);
         background-color: rgba(255,255,255,1);
     }
+}
+
+/* =========================
+   FILTER CHIPS (toolbar)
+   ========================= */
+/* Base chip look (colors come from @GetCategoryClasses + .border utilities) */
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    opacity: .92;
+    transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease, border-color .12s ease, border-width .12s ease;
+}
+
+    .filter-chip:hover,
+    .filter-chip:focus {
+        opacity: 1;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        outline: none;
+    }
+
+    /* Hide checkmark by default; show only when active */
+    .filter-chip .chip-check {
+        display: none !important;
+        font-weight: 700;
+        transform: translateY(-1px);
+    }
+
+    .filter-chip.active .chip-check {
+        display: inline-block !important;
+    }
+
+    /* Active chips: thicker border + cyan inset glow + bolder label */
+    .filter-chip.active {
+        opacity: 1;
+        border-width: 2px;
+        border-color: rgba(0,200,255,0.7) !important;
+        box-shadow: 0 2px 10px rgba(0,200,255,0.25), 0 0 0 2px rgba(0,200,255,0.35) inset;
+    }
+
+        .filter-chip.active .chip-label {
+            font-weight: 600;
+        }
+
+/* When any filter is on, make non-active chips clearly "off" */
+.filterbar.has-active-filters .filter-chip:not(.active) {
+    opacity: 0.45;
+    filter: grayscale(25%);
+    border-color: rgba(0,0,0,0.2) !important;
 }
 
 /* =========================
@@ -250,13 +315,15 @@ code {
     background-color: rgba(0,0,0,0.45);
     backdrop-filter: blur(4px);
 }
+
 .modal {
-    z-index: 2000 !important; /* ensures it’s above the canvas */
+    z-index: 2000 !important;
 }
 
 .modal-backdrop {
     z-index: 1990 !important;
 }
+
 #particleCanvas {
     position: fixed;
     top: 0;
@@ -266,12 +333,13 @@ code {
     pointer-events: none; /* allows clicks through */
     z-index: 0; /* behind all content */
 }
+
 /* =========================
    Hero Section
-========================= */
+   ========================= */
 html {
     scroll-behavior: smooth;
-    scroll-padding-top: 72px; /* fixed navbar offset */
+    scroll-padding-top: 72px;
 }
 
 .hero-section {
@@ -412,7 +480,10 @@ html {
         font-size: 1rem;
     }
 }
-/* Clickable service cards */
+
+/* =========================
+   Service cards
+   ========================= */
 .service-card {
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     border: 1px solid rgba(0,200,255,0.15);
@@ -425,12 +496,10 @@ html {
         box-shadow: 0 12px 28px rgba(0,200,255,0.35), 0 0 14px rgba(0,200,255,0.25);
         border-color: rgba(0,200,255,0.5);
     }
-
     /* Active/click press feedback */
     .service-card:active {
         transform: translateY(-2px) scale(0.995);
     }
-
     /* Focus ring for keyboard navigation */
     .service-card:focus-visible {
         outline: none;
@@ -449,11 +518,39 @@ html {
 
 /* Respect users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
-    .service-card,
-    .service-img {
+    .service-card, .service-img {
         transition: none;
     }
 }
+
+/* Multi-line clamp utility (3 lines) */
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+
+/* Optional: subtle footer look */
+.card-footer-cta {
+    background: transparent;
+    border-top: 1px solid rgba(0,0,0,0.06);
+}
+
+    .card-footer-cta a {
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+        .card-footer-cta a .arrow {
+            display: inline-block;
+            transition: transform 0.15s ease;
+        }
+
+.service-card:hover .card-footer-cta a .arrow {
+    transform: translateX(2px);
+}
+
 .section-block img {
     transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
@@ -474,4 +571,56 @@ html {
 
 .section-body li {
     margin-bottom: 0.35rem;
+}
+
+/* About chips (compact value props) */
+.about-chip {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.85rem 1rem;
+    border: 1px solid rgba(0,200,255,0.15);
+    border-radius: 12px;
+    background: rgba(255,255,255,0.85);
+    box-shadow: 0 2px 10px rgba(0,200,255,0.08);
+}
+
+.about-chip-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.about-chip-title {
+    font-weight: 600;
+    margin-bottom: 0.1rem;
+}
+
+.about-chip-text {
+    font-size: 0.95rem;
+    color: #555;
+}
+
+/* Contact card spacing rows */
+.contact-card .contact-row {
+    padding: 0.5rem 0;
+    border-bottom: 1px dashed rgba(0,0,0,0.08);
+}
+
+    .contact-card .contact-row:last-child {
+        border-bottom: 0;
+    }
+
+/* Make sure rows keep gutters, allow wrap on small screens */
+.contact-row .row {
+    margin-left: 0;
+    margin-right: 0;
+}
+/* keeps card padding as visual edge */
+.contact-row .text-break {
+    word-break: break-word;
+}
+
+/* Slightly denser spacing inside the contact card */
+.contact-card .card-body {
+    padding: 1.25rem;
 }

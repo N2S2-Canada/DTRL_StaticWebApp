@@ -2,20 +2,33 @@
 @inject NavigationManager Nav
 
 <div class="col-md-4 mb-4">
-    <div class="card shadow-sm h-100 service-card position-relative">
-        <img src="@Service.ImageUrl"
-             class="card-img-top service-img"
-             alt="@Service.Title"
-             width="800" height="600"
-             loading="lazy"
-             decoding="async" />
-        <div class="card-body">
+    <div class="card shadow-sm h-100 service-card position-relative d-flex flex-column">
+
+        <!-- 4x3 responsive image -->
+        <div class="ratio ratio-4x3 overflow-hidden rounded-top">
+            <img src="@Service.ImageUrl"
+                 alt="@Service.Title"
+                 class="w-100 h-100 object-fit-cover service-img"
+                 loading="lazy"
+                 decoding="async" />
+        </div>
+
+        <!-- Body flexes, text clamps to 3 lines -->
+        <div class="card-body d-flex flex-column">
             <h5 class="card-title">@Service.Title</h5>
-            <p class="card-text">@Service.Description</p>
-            <!-- Make the whole card clickable -->
+            <p class="card-text flex-grow-1 line-clamp-3">@Service.Description</p>
+
+            <!-- Stretched link keeps whole-card clickable -->
             <a class="stretched-link"
                href="@($"/services/{Uri.EscapeDataString(Service.Id)}")"
                aria-label="@($"{Service.Title} — view details")"></a>
+        </div>
+
+        <!-- Footer stays aligned across cards -->
+        <div class="card-footer card-footer-cta">
+            <a href="@($"/services/{Uri.EscapeDataString(Service.Id)}")" aria-hidden="true" tabindex="-1">
+                View details <span class="arrow">→</span>
+            </a>
         </div>
     </div>
 </div>

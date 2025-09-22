@@ -56,7 +56,7 @@ namespace API.Functions
 
             try
             {
-                // Optional ?code=ABCDE
+                // Optional ?cust_code=ABCDE
                 var q = HttpUtility.ParseQueryString(req.Url.Query);
                 var customerCode = q["cust_code"];
 
@@ -222,32 +222,44 @@ namespace API.Functions
                         var extension = Path.GetExtension(i.Name ?? string.Empty).ToLowerInvariant();
                         var isVideo = allowedVideoExtensions.Contains(extension);
 
+                        // Download URL (short-lived) or WebUrl fallback
                         string? mediaUrl = i.AdditionalData != null && i.AdditionalData.TryGetValue("@microsoft.graph.downloadUrl", out var downloadUrl)
                             ? downloadUrl?.ToString() ?? i.WebUrl
                             : i.WebUrl;
 
-                        string thumbnailUrl = mediaUrl ?? string.Empty;
-
-                        if (isVideo)
+                        // ?? Thumbnails for ALL items (photo & video)
+                        string? tSmall = null, tMedium = null, tLarge = null;
+                        try
                         {
-                            try
-                            {
-                                var driveIdForItem = i.ParentReference?.DriveId!;
-                                var thumbs = await graphClient.Drives[driveIdForItem].Items[i.Id].Thumbnails.GetAsync();
-                                thumbnailUrl = thumbs?.Value?.FirstOrDefault()?.Large?.Url ?? mediaUrl ?? string.Empty;
-                            }
-                            catch
-                            {
-                                thumbnailUrl = mediaUrl ?? string.Empty;
-                            }
+                            var driveIdForItem = i.ParentReference?.DriveId!;
+                            var thumbs = await graphClient.Drives[driveIdForItem].Items[i.Id!].Thumbnails.GetAsync();
+                            var set = thumbs?.Value?.FirstOrDefault();
+                            tSmall = set?.Small?.Url;
+                            tMedium = set?.Medium?.Url;
+                            tLarge = set?.Large?.Url;
                         }
+                        catch
+                        {
+                            // If no thumbs, we fall back to the file url below
+                        }
+
+                        // Fallback chain
+                        var thumbSmall = tSmall ?? tMedium ?? tLarge ?? mediaUrl ?? string.Empty;
+                        var thumbMedium = tMedium ?? tLarge ?? tSmall ?? mediaUrl ?? string.Empty;
+                        var thumbLarge = tLarge ?? tMedium ?? tSmall ?? mediaUrl ?? string.Empty;
 
                         return new SharedModels.Video
                         {
                             Name = ToFriendlyName(Path.GetFileNameWithoutExtension(i.Name ?? string.Empty)),
                             Url = mediaUrl,
-                            ThumbnailUrl = thumbnailUrl,
-                            Categories = categories,
+
+                            // Back-compat + new fields
+                            ThumbnailUrl = thumbMedium,      // existing field points at Medium
+                            ThumbnailSmall = thumbSmall,
+                            ThumbnailMedium = thumbMedium,
+                            ThumbnailLarge = thumbLarge,
+
+                            Categories = categories.ToArray(),
                             IsVideo = isVideo
                         };
                     });
@@ -255,6 +267,8 @@ namespace API.Functions
                 var videos = await Task.WhenAll(videoTasks);
 
                 res.StatusCode = HttpStatusCode.OK;
+                // cache for 5 minutes, allow SWR for 60s
+                res.Headers.Add("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
                 await res.WriteAsJsonAsync(new VideosResponse
                 {
                     Title = displayName,  // null when browsing the default folder

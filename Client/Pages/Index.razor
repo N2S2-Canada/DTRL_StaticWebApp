@@ -1,4 +1,4 @@
-@page "/"
+﻿@page "/"
 @using System.Net.Http.Json
 @inject IJSRuntime JS
 @inject HttpClient Http
@@ -39,7 +39,7 @@
         @if (!string.IsNullOrEmpty(loadError))
         {
             <div class="alert alert-danger" role="alert">
-                Couldn�t load services: @loadError
+                Couldn’t load services: @loadError
             </div>
         }
         else if (services is null)
@@ -63,17 +63,61 @@
 
     @* ------------ ONE BATCH CALL FOR ALL KEYS BELOW ------------ *@
     <CmsPreloadTxt Blocking="true"
-                   Keys="@(new[] { "AboutUs.Lead", "ContactUs.Lead1", "ContactUs.Lead2", "ContactUs.Email", "ContactUs.Phone" })"
-                   Placeholder="<p class='text-center my-5'>Loading content�</p>">
+                   Keys="@(new[] {
+                                      "AboutUs.Lead",
+                                      "ContactUs.Lead1", "ContactUs.Lead2",
+                                      "ContactUs.Email", "ContactUs.Phone"
+                                  })"
+                   Placeholder="<p class='text-center my-5'>Loading content…</p>">
+
         <!-- About Us -->
         <section id="about" class="container py-5">
-            <h2 class="text-center mb-4">About Us</h2>
-            <div class="row justify-content-center">
-                <div class="col-lg-8">
-                    <p class="lead text-center">
+            <div class="row align-items-center g-4">
+                <div class="col-12">
+                    <h2 class="text-center mb-4">About Us</h2>
+                </div>
+
+                @* Lead copy *@
+                <div class="col-lg-10 mx-auto">
+                    <p class="lead text-center mb-4">
                         <CmsText Key="AboutUs.Lead"
-                                 Fallback="At <strong>DiverseTech Robotics Ltd.</strong>, we are passionate about harnessing drone technology to deliver innovative solutions for industries ranging from construction to environmental monitoring. Our experienced team ensures top-quality results, safety, and efficiency on every project." />
+                                 Fallback="At <strong>DiverseTech Robotics Ltd.</strong>, we deliver drone solutions for construction, industrial, and environmental monitoring—combining safety, quality, and efficiency." />
                     </p>
+                </div>
+
+                @* Three concise value props (optional, static text you can CMS-ify later) *@
+                <div class="col-lg-10 mx-auto">
+                    <div class="row g-3 justify-content-center">
+                        <div class="col-md-4">
+                            <div class="about-chip">
+                                <div class="about-chip-icon" aria-hidden="true">🔧</div>
+                                <div>
+                                    <div class="about-chip-title">Industrial-grade results</div>
+                                    <div class="about-chip-text">Data you can build on—repeatable, documented, and auditable.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="about-chip">
+                                <div class="about-chip-icon" aria-hidden="true">🛰️</div>
+                                <div>
+                                    <div class="about-chip-title">Modern sensors</div>
+                                    <div class="about-chip-text">High-res imagery, thermal, and multispectral options.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="about-chip">
+                                <div class="about-chip-icon" aria-hidden="true">🛡️</div>
+                                <div>
+                                    <div class="about-chip-title">Safety first</div>
+                                    <div class="about-chip-text">Licensed pilots, controlled workflows, and compliant ops.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -83,39 +127,122 @@
             <div class="container">
                 <h2 class="text-center mb-4">Contact Us</h2>
 
-                <div class="row justify-content-center">
-                    <div class="col-lg-8">
-                        <p class="lead text-center mb-4">
-                            <CmsText Key="ContactUs.Lead1" Fallback="Have a project in mind or want to learn more about our services?" />
-                        </p>
-                        <p class="lead text-center mb-4">
-                            <CmsText Key="ContactUs.Lead2" Fallback="Get in touch with <strong>DiverseTech Robotics Ltd.</strong> today." />
-                        </p>
+                <div class="row justify-content-center g-4">
+                    @* Left: Contact info card with copy buttons *@
+                    <div class="col-lg-5">
+                        <div class="card h-100 shadow-sm contact-card">
+                            <div class="card-body">
+                                <p class="lead text-center mb-3">
+                                    <CmsText Key="ContactUs.Lead1" Fallback="Have a project in mind or want to learn more about our services?" />
+                                </p>
+                                <p class="lead text-center mb-4">
+                                    <CmsText Key="ContactUs.Lead2" Fallback="Get in touch with <strong>DiverseTech Robotics Ltd.</strong> today." />
+                                </p>
 
-                        <!-- Contact Info -->
-                        <div class="text-center mb-4">
-                            <p><strong>Email:</strong> <CmsText Key="ContactUs.Email" Fallback="diversetechrobotics@gmail.com" /></p>
-                            <p><strong>Phone:</strong> <CmsText Key="ContactUs.Phone" Fallback="+1 (204) 509-0729" /></p>
+                                <div class="contact-row">
+                                    <div class="row align-items-center g-2">
+                                        <div class="col-8 col-md-9">
+                                            <div class="fw-semibold">Email</div>
+                                            <div id="contact-email" class="text-body-secondary text-break">
+                                                <CmsText Key="ContactUs.Email" Fallback="diversetechrobotics@gmail.com" />
+                                            </div>
+                                        </div>
+                                        <div class="col-4 col-md-3 text-md-end">
+                                            <div class="btn-group">
+                                                <a class="btn btn-outline-primary btn-sm"
+                                                   href="mailto:diversetechrobotics@gmail.com"
+                                                   aria-label="Email us">
+                                                    Email
+                                                </a>
+                                                <button type="button"
+                                                        class="btn btn-outline-secondary btn-sm"
+                                                        @onclick='() => CopyTextAsync("contact-email")'>
+                                                    Copy
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="contact-row">
+                                    <div class="row align-items-center g-2">
+                                        <!-- Label + value take most of the width -->
+                                        <div class="col-8 col-md-9">
+                                            <div class="fw-semibold">Phone</div>
+                                            <div id="contact-phone" class="text-body-secondary text-break">
+                                                <CmsText Key="ContactUs.Phone" Fallback="+1 (204) 509-0729" />
+                                            </div>
+                                        </div>
+
+                                        <!-- Actions use a fixed, narrower column -->
+                                        <div class="col-4 col-md-3 text-md-end">
+                                            <div class="btn-group">
+                                                <a class="btn btn-outline-primary btn-sm"
+                                                   href="tel:+12045090729"
+                                                   aria-label="Call us">
+                                                    Call
+                                                </a>
+                                                <button type="button"
+                                                        class="btn btn-outline-secondary btn-sm"
+                                                        @onclick='() => CopyTextAsync("contact-phone")'>
+                                                    Copy
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @* subtle footer note *@
+                            <div class="card-footer small text-body-secondary">
+                                Business hours: Mon–Fri, 9:00–17:00 CT
+                            </div>
                         </div>
+                    </div>
 
-                        <!-- Contact Form -->
-                        <form>
-                            <div class="mb-3">
-                                <label for="name" class="form-label">Name</label>
-                                <input type="text" class="form-control" id="name" placeholder="Your name" />
+                    @* Right: Accessible form with validation (client-side) *@
+                    <div class="col-lg-7">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <EditForm Model="@contact" OnValidSubmit="@OnSubmitAsync">
+                                    <DataAnnotationsValidator />
+                                    <ValidationSummary />
+
+                                    <div class="mb-3">
+                                        <label for="name" class="form-label">Name</label>
+                                        <InputText id="name" class="form-control" @bind-Value="contact.Name" />
+                                        <ValidationMessage For="@(() => contact.Name)" />
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="email" class="form-label">Email</label>
+                                        <InputText id="email" class="form-control" type="email" @bind-Value="contact.Email" />
+                                        <ValidationMessage For="@(() => contact.Email)" />
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="message" class="form-label">Message</label>
+                                        <InputTextArea id="message" class="form-control" rows="4" @bind-Value="contact.Message" />
+                                        <ValidationMessage For="@(() => contact.Message)" />
+                                    </div>
+
+                                    @* simple honeypot *@
+                                    <InputText class="d-none" @bind-Value="contact.Hp" autocomplete="off" />
+
+                                    <div class="text-center">
+                                        <button class="btn btn-primary btn-lg" disabled="@isSubmitting">
+                                            @(isSubmitting ? "Sending…" : "Send Message")
+                                        </button>
+                                    </div>
+
+                                    <div class="mt-3" aria-live="polite">
+                                        @if (!string.IsNullOrEmpty(formStatus))
+                                        {
+                                            <div class="alert @statusClass" role="status">@formStatus</div>
+                                        }
+                                    </div>
+                                </EditForm>
                             </div>
-                            <div class="mb-3">
-                                <label for="email" class="form-label">Email</label>
-                                <input type="email" class="form-control" id="email" placeholder="your@email.com" />
-                            </div>
-                            <div class="mb-3">
-                                <label for="message" class="form-label">Message</label>
-                                <textarea class="form-control" id="message" rows="4" placeholder="Your message..."></textarea>
-                            </div>
-                            <div class="text-center">
-                                <button type="submit" class="btn btn-primary btn-lg">Send Message</button>
-                            </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -135,22 +262,22 @@
     private List<Service>? services;
     private string? loadError;
 
+    // Contact form model + status
+    private ContactRequest contact = new();
+    private bool isSubmitting;
+    private string? formStatus;
+    private string statusClass = "alert-success";
+
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            // Fetch services from Functions API (SWA proxies /api to your Functions app)
             services = await Http.GetFromJsonAsync<List<Service>>("api/services");
-
-            // Optional: if you ever run the WASM app without SWA dev server, use a config override:
-            // var apiBase = /* read from config or env */;
-            // var url = string.IsNullOrWhiteSpace(apiBase) ? "api/services" : $"{apiBase.TrimEnd('/')}/api/services";
-            // services = await Http.GetFromJsonAsync<List<Service>>(url);
         }
         catch (Exception ex)
         {
             loadError = ex.Message;
-            services = new(); // avoid a perpetual "Loading..." state
+            services = new();
         }
     }
 
@@ -160,5 +287,68 @@
         {
             await JS.InvokeVoidAsync("setupHeroParallax");
         }
+    }
+
+    private async Task CopyTextAsync(string elementId)
+    {
+        var ok = await JS.InvokeAsync<bool>("copyFromElement", elementId);
+        formStatus = ok ? "Copied!" : "Couldn’t copy.";
+        statusClass = ok ? "alert-success" : "alert-warning";
+        StateHasChanged();
+        await Task.Delay(1500);
+        formStatus = null; StateHasChanged();
+    }
+
+    private async Task OnSubmitAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(contact.Hp))
+            return; // bot
+
+        try
+        {
+            isSubmitting = true; formStatus = null;
+
+            // TODO: integrate with an Azure Function (e.g., POST /api/contact)
+            // For now, open a prefilled mailto as a fallback UX:
+            var subject = Uri.EscapeDataString("Website inquiry");
+            var body = Uri.EscapeDataString(
+                $"Name: {contact.Name}\nEmail: {contact.Email}\n\n{contact.Message}"
+            );
+
+            // NOTE: this mailto uses your fallback email; once a /api/contact exists, replace.
+            var mailto = $"mailto:diversetechrobotics@gmail.com?subject={subject}&body={body}";
+            await JS.InvokeVoidAsync("open", mailto, "_self");
+
+            formStatus = "Thanks! We’ll get back to you shortly.";
+            statusClass = "alert-success";
+            contact = new(); // reset
+        }
+        catch
+        {
+            formStatus = "Something went wrong sending your message. Please try again.";
+            statusClass = "alert-danger";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    public class ContactRequest
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(80, MinimumLength = 2)]
+        public string Name { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        public string Email { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(4000, MinimumLength = 5)]
+        public string Message { get; set; } = "";
+
+        // honeypot
+        public string? Hp { get; set; }
     }
 }
