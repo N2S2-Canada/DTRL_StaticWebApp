@@ -1,6 +1,8 @@
 ﻿@page "/videos"
+@using Microsoft.AspNetCore.WebUtilities
 @inject HttpClient Http
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 
 <h1>@(string.IsNullOrWhiteSpace(pageTitle) ? "DiverseTech Robotics Media" : pageTitle)</h1>
 
@@ -19,7 +21,7 @@ else
 {
     <!-- Filter toolbar -->
     <div class="container px-0 mb-3" style="position: relative; z-index:1;">
-        <div class="d-flex flex-wrap align-items-center gap-2 filterbar @(selectedCategories.Count > 0 ? "has-active-filters" : null)">
+        <div class="d-flex flex-wrap align-items-center gap-2 filterbar @(selectedCategories.Count > 0 ? "has-active-filters" : null) mode-@filterMode.ToString().ToLowerInvariant()">
             <span class="text-body-secondary">Filter by category:</span>
 
             @foreach (var cat in allCategories)
@@ -33,11 +35,31 @@ else
                       @onkeydown='(KeyboardEventArgs e) => { if (e.Key == "Enter" || e.Key == " ") ToggleCategory(cat); }'>
 
                     <span class="chip-check" aria-hidden="true">✓</span>
+                    <span class="chip-x" aria-hidden="true">✕</span>
                     <span class="chip-label">@cat</span>
                 </span>
             }
 
             <div class="ms-auto d-flex align-items-center gap-2">
+                <!-- Mode switch -->
+                <div class="btn-group btn-group-sm" role="group" aria-label="Filter mode">
+                    <button type="button" class="btn btn-outline-primary @(filterMode == FilterMode.Or ? "active" : null)"
+                            title="Match any selected category"
+                            @onclick="() => SetMode(FilterMode.Or)">
+                        OR
+                    </button>
+                    <button type="button" class="btn btn-outline-primary @(filterMode == FilterMode.And ? "active" : null)"
+                            title="Match all selected categories"
+                            @onclick="() => SetMode(FilterMode.And)">
+                        AND
+                    </button>
+                    <button type="button" class="btn btn-outline-danger @(filterMode == FilterMode.Not ? "active" : null)"
+                            title="Exclude selected categories"
+                            @onclick="() => SetMode(FilterMode.Not)">
+                        NOT
+                    </button>
+                </div>
+
                 @if (selectedCategories.Count > 0)
                 {
                     <span class="badge bg-primary-subtle text-dark border">Selected @selectedCategories.Count</span>
@@ -82,9 +104,9 @@ else
                                          src="@ThumbSrc(item)"
                                          srcset="@ThumbSrcSet(item)"
                                          sizes="(min-width: 1200px) 25vw,
-                                                               (min-width: 992px)  33vw,
-                                                               (min-width: 576px)  50vw,
-                                                               100vw" />
+                                                                (min-width: 992px)  33vw,
+                                                                (min-width: 576px)  50vw,
+                                                                100vw" />
                                     <span class="play-icon">&#9658;</span>
                                 </div>
                             }
@@ -101,9 +123,9 @@ else
                                          src="@ThumbSrc(item)"
                                          srcset="@ThumbSrcSet(item)"
                                          sizes="(min-width: 1200px) 25vw,
-                                                               (min-width: 992px)  33vw,
-                                                               (min-width: 576px)  50vw,
-                                                               100vw" />
+                                                                (min-width: 992px)  33vw,
+                                                                (min-width: 576px)  50vw,
+                                                                100vw" />
                                 </div>
                             }
 
@@ -157,6 +179,10 @@ else
     [SupplyParameterFromQuery(Name = "cust_code")]
     public string? customerCode { get; set; }   // ?cust_code=ABCDE
 
+    // Optional direct binding (if you prefer), we’ll still parse manually for robustness:
+    [Parameter][SupplyParameterFromQuery(Name = "mode")] public string? modeParam { get; set; }
+    [Parameter][SupplyParameterFromQuery(Name = "cats")] public string? catsParam { get; set; }
+
     private List<SharedModels.Video>? videos;
     private List<SharedModels.Video> filteredVideos = new();
     private string? pageTitle;
@@ -177,15 +203,19 @@ else
         public List<SharedModels.Video>? Items { get; set; }
     }
 
+    // Filter mode
+    private enum FilterMode { Or, And, Not }
+    private FilterMode filterMode = FilterMode.Or;
+
     protected override async Task OnParametersSetAsync()
     {
-        var url = string.IsNullOrWhiteSpace(customerCode)
+        var apiUrl = string.IsNullOrWhiteSpace(customerCode)
             ? "/api/videos"
-            : $"/api/videos?cust_code={Uri.EscapeDataString(customerCode)}";
+            : $"/api/videos?cust_code={Uri.EscapeDataString(customerCode ?? "")}";
 
         try
         {
-            var payload = await Http.GetFromJsonAsync<VideosResponse>(url);
+            var payload = await Http.GetFromJsonAsync<VideosResponse>(apiUrl);
             pageTitle = payload?.Title;
             videos = payload?.Items ?? new List<SharedModels.Video>();
 
@@ -194,10 +224,13 @@ else
                 .SelectMany(v => v.Categories ?? Array.Empty<string>())
                 .Select(c => c?.Trim())
                 .Where(c => !string.IsNullOrWhiteSpace(c))
-                .Cast<string>() // Ensures only non-null strings are included
+                .Cast<string>()
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
+            // Read mode & cats from current URL (supports both bound params and manual parsing)
+            ReadStateFromUrl();
 
             ApplyCategoryFilter();
         }
@@ -272,12 +305,21 @@ else
         if (selectedCategories.Contains(cat)) selectedCategories.Remove(cat);
         else selectedCategories.Add(cat);
         ApplyCategoryFilter();
+        UpdateUrlFromState();
+    }
+
+    private void SetMode(FilterMode mode)
+    {
+        filterMode = mode;
+        ApplyCategoryFilter();
+        UpdateUrlFromState();
     }
 
     private void ClearFilters()
     {
         selectedCategories.Clear();
         ApplyCategoryFilter();
+        UpdateUrlFromState();
     }
 
     private void ApplyCategoryFilter()
@@ -292,10 +334,91 @@ else
             return;
         }
 
-        filteredVideos = videos
-            .Where(v => v.Categories != null && v.Categories.Any(c => selectedCategories.Contains(c)))
-            .ToList();
+        Func<SharedModels.Video, bool> predicate = v => false;
+
+        switch (filterMode)
+        {
+            case FilterMode.Or:
+                predicate = v => v.Categories != null && v.Categories.Any(c => selectedCategories.Contains(c));
+                break;
+
+            case FilterMode.And:
+                predicate = v => v.Categories != null && selectedCategories.All(sel =>
+                    v.Categories.Contains(sel, StringComparer.OrdinalIgnoreCase));
+                break;
+
+            case FilterMode.Not:
+                predicate = v => v.Categories != null && !v.Categories.Any(c => selectedCategories.Contains(c));
+                break;
+        }
+
+        filteredVideos = videos.Where(predicate).ToList();
     }
+
+    // ---------- URL state (mode + categories) ----------
+    private void ReadStateFromUrl()
+    {
+        var uri = new Uri(Nav.Uri);
+        var q = QueryHelpers.ParseQuery(uri.Query);
+
+        // Mode
+        if (q.TryGetValue("mode", out var modeVals))
+        {
+            var m = modeVals.ToString();
+            filterMode = ParseMode(m) ?? FilterMode.Or;
+        }
+        else if (!string.IsNullOrWhiteSpace(modeParam))
+        {
+            filterMode = ParseMode(modeParam!) ?? FilterMode.Or;
+        }
+
+        // Categories
+        var incomingCats = new List<string>();
+        if (q.TryGetValue("cats", out var catVals))
+        {
+            incomingCats.AddRange(catVals.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+        else if (!string.IsNullOrWhiteSpace(catsParam))
+        {
+            incomingCats.AddRange(catsParam!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+
+        selectedCategories.Clear();
+        foreach (var c in incomingCats)
+        {
+            // Only keep categories that exist in allCategories (avoid stale URL values)
+            if (allCategories.Contains(c, StringComparer.OrdinalIgnoreCase))
+                selectedCategories.Add(allCategories.First(ac => string.Equals(ac, c, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
+
+    private void UpdateUrlFromState()
+    {
+        var basePath = "/videos";
+
+        var qs = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(customerCode))
+            qs["cust_code"] = customerCode;
+
+        if (selectedCategories.Count > 0)
+            qs["cats"] = string.Join(",", selectedCategories);
+
+        // Only include mode if not the default OR, or if cats are present (so sharing preserves intent)
+        if (filterMode != FilterMode.Or || selectedCategories.Count > 0)
+            qs["mode"] = filterMode.ToString().ToLowerInvariant();
+
+        var target = QueryHelpers.AddQueryString(basePath, qs!);
+        Nav.NavigateTo(target, replace: true); // update URL without cluttering history
+    }
+
+    private static FilterMode? ParseMode(string s)
+        => s?.Trim().ToLowerInvariant() switch
+        {
+            "and" => FilterMode.And,
+            "not" => FilterMode.Not,
+            "or" => FilterMode.Or,
+            _ => null
+        };
 
     // ---------- Thumbnail helpers ----------
     private static string ThumbSrc(SharedModels.Video v)

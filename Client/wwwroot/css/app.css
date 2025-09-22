@@ -280,6 +280,105 @@ code {
 }
 
 /* =========================
+   FILTER BAR
+   ========================= */
+/* Show ✓ in OR/AND; show ✕ in NOT */
+.filterbar.mode-or .chip-check,
+.filterbar.mode-and .chip-check {
+    display: inline-block !important;
+}
+
+.filterbar.mode-or .chip-x,
+.filterbar.mode-and .chip-x {
+    display: none !important;
+}
+
+.filterbar.mode-not .chip-check {
+    display: none !important;
+}
+
+.filterbar.mode-not .chip-x {
+    display: inline-block !important;
+    font-weight: 700;
+    transform: translateY(-1px);
+}
+
+/* When filtering:
+   - OR/AND: non-active (not selected) chips look "off"
+   - NOT: active (selected/excluded) chips look "off", non-active look normal */
+.filterbar.has-active-filters.mode-or .filter-chip:not(.active),
+.filterbar.has-active-filters.mode-and .filter-chip:not(.active) {
+    opacity: 0.45;
+    filter: grayscale(25%);
+    border-color: rgba(0,0,0,0.2) !important;
+}
+
+.filterbar.has-active-filters.mode-not .filter-chip.active {
+    opacity: 0.45;
+    filter: grayscale(25%);
+    border-color: rgba(0,0,0,0.2) !important;
+}
+
+/* Stronger cue for NOT mode active (excluded) chips: red outline */
+.filterbar.mode-not .filter-chip.active {
+    border-width: 2px;
+    border-color: rgba(220,53,69,0.85) !important; /* Bootstrap danger-ish */
+    box-shadow: 0 0 0 2px rgba(220,53,69,0.25) inset;
+}
+/* =========================
+   NOT mode: invert visuals
+   ========================= */
+
+/* In NOT mode:
+   - Unselected chips show ✓ and look active (kept)
+   - Selected chips show ✕ and look excluded (dim + red outline)
+*/
+
+/* Reset icons first */
+.filterbar.mode-not .filter-chip .chip-check,
+.filterbar.mode-not .filter-chip .chip-x {
+    display: none !important;
+}
+
+/* Unselected → ✓ */
+.filterbar.mode-not .filter-chip:not(.active) .chip-check {
+    display: inline-block !important;
+    font-weight: 700;
+    transform: translateY(-1px);
+}
+
+/* Selected (excluded) → ✕ */
+.filterbar.mode-not .filter-chip.active .chip-x {
+    display: inline-block !important;
+    font-weight: 700;
+    transform: translateY(-1px);
+}
+
+/* When any filter is on in NOT mode… */
+
+/* Unselected chips should appear ACTIVE (kept) */
+.filterbar.has-active-filters.mode-not .filter-chip:not(.active) {
+    opacity: 1 !important;
+    filter: none !important;
+    border-width: 2px;
+    border-color: rgba(0,200,255,0.7) !important;
+    box-shadow: 0 2px 10px rgba(0,200,255,0.25), 0 0 0 2px rgba(0,200,255,0.35) inset;
+}
+
+    .filterbar.has-active-filters.mode-not .filter-chip:not(.active) .chip-label {
+        font-weight: 600;
+    }
+
+/* Selected chips should appear EXCLUDED (dim + red outline) */
+.filterbar.has-active-filters.mode-not .filter-chip.active {
+    opacity: 0.65 !important;
+    filter: grayscale(25%) !important;
+    border-width: 2px;
+    border-color: rgba(220,53,69,0.85) !important; /* Bootstrap danger-ish */
+    box-shadow: 0 0 0 2px rgba(220,53,69,0.25) inset !important;
+}
+
+/* =========================
    Modal Styling & Glow
    ========================= */
 .modal-content {
