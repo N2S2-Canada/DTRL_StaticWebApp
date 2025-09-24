@@ -170,29 +170,17 @@ else
                 <button type="button" class="carousel-nav prev" title="Previous (←)" @onclick="PrevItem" aria-label="Previous">‹</button>
                 <button type="button" class="carousel-nav next" title="Next (→)" @onclick="NextItem" aria-label="Next">›</button>
 
-                @* Modal download overlay (only when code supplied) *@
-                <div class="media-frame d-inline-block position-relative">
-                    @if (AllowDownload)
-                    {
-                        <a class="thumb-action btn btn-light border modal-dl" ...>↓</a>
-                    }
-                    <!-- image/video here -->
-                </div>
-
                 @if (currentItem != null)
                 {
                     <div class="media-frame d-inline-block position-relative">
-                        @* Download overlay (anchored to the media, only with code) *@
+                        @* Download overlay anchored to the media (only with customer code) *@
                         @if (AllowDownload)
                         {
-                            <!-- Caption / filename -->
                             <a class="thumb-action btn btn-light border modal-dl"
                                href="@currentItem.Url"
                                download='@($"{currentItem.Name}{(currentItem.IsVideo ? ".mp4" : ".jpg")}")'
                                rel="noopener"
-                               title="Download">
-                                ↓
-                            </a>
+                               title="Download">↓</a>
                         }
 
                         @if (currentItem.IsVideo)
@@ -220,7 +208,7 @@ else
                     <div class="mt-2 text-muted small">@currentItem.Name</div>
                     <div class="text-muted-50 small">@((currentIndex + 1)) of @visibleItems.Count</div>
                 }
-            </div> <!-- /.modal-body -->
+            </div>
         </div> <!-- /.modal-content -->
     </div> <!-- /.modal-dialog -->
 </div> <!-- /.modal -->

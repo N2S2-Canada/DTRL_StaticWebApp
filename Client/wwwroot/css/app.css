@@ -248,7 +248,6 @@ code {
         box-shadow: 0 2px 8px rgba(0,0,0,0.12);
         outline: none;
     }
-
     /* Hide checkmark by default; show only when active */
     .filter-chip .chip-check {
         display: none !important;
@@ -280,83 +279,29 @@ code {
 }
 
 /* =========================
-   FILTER BAR
+   FILTER BAR — NOT mode
    ========================= */
-/* Show ✓ in OR/AND; show ✕ in NOT */
-.filterbar.mode-or .chip-check,
-.filterbar.mode-and .chip-check {
-    display: inline-block !important;
-}
-
-.filterbar.mode-or .chip-x,
-.filterbar.mode-and .chip-x {
-    display: none !important;
-}
-
-.filterbar.mode-not .chip-check {
-    display: none !important;
-}
-
-.filterbar.mode-not .chip-x {
-    display: inline-block !important;
-    font-weight: 700;
-    transform: translateY(-1px);
-}
-
-/* When filtering:
-   - OR/AND: non-active (not selected) chips look "off"
-   - NOT: active (selected/excluded) chips look "off", non-active look normal */
-.filterbar.has-active-filters.mode-or .filter-chip:not(.active),
-.filterbar.has-active-filters.mode-and .filter-chip:not(.active) {
-    opacity: 0.45;
-    filter: grayscale(25%);
-    border-color: rgba(0,0,0,0.2) !important;
-}
-
-.filterbar.has-active-filters.mode-not .filter-chip.active {
-    opacity: 0.45;
-    filter: grayscale(25%);
-    border-color: rgba(0,0,0,0.2) !important;
-}
-
-/* Stronger cue for NOT mode active (excluded) chips: red outline */
-.filterbar.mode-not .filter-chip.active {
-    border-width: 2px;
-    border-color: rgba(220,53,69,0.85) !important; /* Bootstrap danger-ish */
-    box-shadow: 0 0 0 2px rgba(220,53,69,0.25) inset;
-}
-/* =========================
-   NOT mode: invert visuals
-   ========================= */
-
 /* In NOT mode:
    - Unselected chips show ✓ and look active (kept)
    - Selected chips show ✕ and look excluded (dim + red outline)
 */
-
-/* Reset icons first */
 .filterbar.mode-not .filter-chip .chip-check,
 .filterbar.mode-not .filter-chip .chip-x {
     display: none !important;
 }
-
 /* Unselected → ✓ */
 .filterbar.mode-not .filter-chip:not(.active) .chip-check {
     display: inline-block !important;
     font-weight: 700;
     transform: translateY(-1px);
 }
-
 /* Selected (excluded) → ✕ */
 .filterbar.mode-not .filter-chip.active .chip-x {
     display: inline-block !important;
     font-weight: 700;
     transform: translateY(-1px);
 }
-
 /* When any filter is on in NOT mode… */
-
-/* Unselected chips should appear ACTIVE (kept) */
 .filterbar.has-active-filters.mode-not .filter-chip:not(.active) {
     opacity: 1 !important;
     filter: none !important;
@@ -368,7 +313,6 @@ code {
     .filterbar.has-active-filters.mode-not .filter-chip:not(.active) .chip-label {
         font-weight: 600;
     }
-
 /* Selected chips should appear EXCLUDED (dim + red outline) */
 .filterbar.has-active-filters.mode-not .filter-chip.active {
     opacity: 0.65 !important;
@@ -393,7 +337,6 @@ code {
         box-shadow: 0 0 12px rgba(0,200,255,0.2);
         border-radius: 8px;
     }
-
 /* Close button glow */
 .modal-header .btn-close {
     filter: drop-shadow(0 0 5px rgba(0,200,255,0.6));
@@ -404,7 +347,6 @@ code {
         transform: scale(1.2);
         filter: drop-shadow(0 0 12px rgba(0,200,255,0.8));
     }
-
 /* Modal overlay */
 .modal.fade .modal-dialog {
     transition: transform 0.3s ease-out;
@@ -423,6 +365,7 @@ code {
     z-index: 1990 !important;
 }
 
+/* Particle canvas */
 #particleCanvas {
     position: fixed;
     top: 0;
@@ -476,7 +419,6 @@ html {
     padding-top: 80px; /* spacing below navbar for logo */
     padding-bottom: 20px;
 }
-
 /* Logos */
 .hero-logo {
     height: 100px;
@@ -487,7 +429,6 @@ html {
     height: 40px;
     width: auto;
 }
-
 /* Headline & subtitle */
 .hero-headline {
     font-size: 3rem;
@@ -499,13 +440,11 @@ html {
     font-size: 1.25rem;
     color: white;
 }
-
 /* Contact button */
 .hero-cta a {
     color: white;
     text-decoration: none;
 }
-
 /* Fade-in animations */
 .fade-in {
     opacity: 0;
@@ -531,7 +470,6 @@ html {
         transform: translateY(0);
     }
 }
-
 /* Background zoom (Ken Burns) */
 @keyframes bgZoom {
     0% {
@@ -542,7 +480,6 @@ html {
         transform: scale(1.05);
     }
 }
-
 /* Responsive adjustments */
 @media (max-width: 992px) {
     .hero-logo {
@@ -605,7 +542,6 @@ html {
         box-shadow: 0 0 0 3px rgba(13,110,253,0.5), 0 12px 28px rgba(0,200,255,0.3);
         border-color: #0d6efd;
     }
-
 /* Optional: image zoom harmonizes with card lift */
 .service-img {
     transition: transform 0.25s ease;
@@ -614,14 +550,12 @@ html {
 .service-card:hover .service-img {
     transform: scale(1.05);
 }
-
 /* Respect users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
     .service-card, .service-img {
         transition: none;
     }
 }
-
 /* Multi-line clamp utility (3 lines) */
 .line-clamp-3 {
     display: -webkit-box;
@@ -629,7 +563,6 @@ html {
     -webkit-line-clamp: 3;
     overflow: hidden;
 }
-
 /* Optional: subtle footer look */
 .card-footer-cta {
     background: transparent;
@@ -708,8 +641,7 @@ html {
     .contact-card .contact-row:last-child {
         border-bottom: 0;
     }
-
-/* Make sure rows keep gutters, allow wrap on small screens */
+/* Keep gutters, allow wrap on small screens */
 .contact-row .row {
     margin-left: 0;
     margin-right: 0;
@@ -718,11 +650,11 @@ html {
 .contact-row .text-break {
     word-break: break-word;
 }
-
 /* Slightly denser spacing inside the contact card */
 .contact-card .card-body {
     padding: 1.25rem;
 }
+
 /* =========================
    Media Carousel
    ========================= */
@@ -754,6 +686,7 @@ html {
     .carousel-nav.next {
         right: .75rem;
     }
+
 /* Download chip on thumbnails (shown only when AllowDownload) */
 .thumb-action {
     position: absolute;
@@ -783,12 +716,12 @@ html {
     height: auto;
     z-index: 2;
 }
+
 /* Make the media a positioning context for overlays */
 .media-frame {
     position: relative; /* already set inline, here as a safety */
     display: inline-block; /* shrink-wrap to media size */
 }
-
     /* Modal download chip, anchored to the MEDIA (not whole modal) */
     .media-frame .thumb-action.modal-dl {
         position: absolute;
@@ -810,3 +743,19 @@ html {
             box-shadow: 0 3px 14px rgba(0,0,0,0.22);
         }
 
+/* =========================
+   Final cleanups / safety
+   ========================= */
+/* Ensure only the media-anchored modal chip is visible (hide any legacy modal-level chip) */
+.modal-body > .thumb-action.modal-dl {
+    display: none !important;
+}
+/* Keep grid overlays below an open modal (defensive) */
+.modal-open .video-thumbnail-wrapper .thumb-action {
+    z-index: 0 !important;
+    pointer-events: none;
+}
+/* Strengthen modal stacking context */
+.modal {
+    isolation: isolate;
+}
