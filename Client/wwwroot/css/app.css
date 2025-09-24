@@ -723,3 +723,35 @@ html {
 .contact-card .card-body {
     padding: 1.25rem;
 }
+/* =========================
+   Media Carousel
+   ========================= */
+/* Carousel nav buttons inside modal */
+.carousel-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: .35rem .6rem;
+    font-size: 2rem;
+    line-height: 1;
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: .5rem;
+    color: #fff;
+    cursor: pointer;
+    user-select: none;
+    z-index: 5;
+}
+
+    .carousel-nav:hover {
+        background: rgba(0,0,0,0.65);
+    }
+
+    .carousel-nav.prev {
+        left: .75rem;
+    }
+
+    .carousel-nav.next {
+        right: .75rem;
+    }
+
