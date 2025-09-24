@@ -96,6 +96,7 @@ else
 
                     <div class="col-sm-6 col-md-4 col-lg-3">
                         <div class="card h-100 shadow-sm card-hover-lift">
+
                             <div class="video-thumbnail-wrapper ratio ratio-16x9 rounded-top"
                                  role="button" tabindex="0"
                                  @onclick='() => OpenModalAt(idx)'
@@ -122,15 +123,32 @@ else
                                      src="@ThumbSrc(item)"
                                      srcset="@ThumbSrcSet(item)"
                                      sizes="(min-width: 1200px) 25vw,
-                                                        (min-width: 992px)  33vw,
-                                                        (min-width: 576px)  50vw,
-                                                        100vw" />
+                                    (min-width: 992px)  33vw,
+                                    (min-width: 576px)  50vw,
+                                    100vw" />
 
                                 @if (item.IsVideo)
                                 {
                                     <span class="play-icon">&#9658;</span>
                                 }
                             </div>
+
+                            @* 🔽 This section restores the filename and category badges *@
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title mb-2">@item.Name</h5>
+                                <div class="mb-2">
+                                    @if (item.Categories != null)
+                                    {
+                                        @foreach (var category in item.Categories)
+                                        {
+                                            <span class="badge @GetCategoryClasses(category) border border-dark rounded-pill me-1 category-badge">
+                                                @category
+                                            </span>
+                                        }
+                                    }
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 }
@@ -167,6 +185,7 @@ else
                         @* Download overlay (anchored to the media, only with code) *@
                         @if (AllowDownload)
                         {
+                            <!-- Caption / filename -->
                             <a class="thumb-action btn btn-light border modal-dl"
                                href="@currentItem.Url"
                                download='@($"{currentItem.Name}{(currentItem.IsVideo ? ".mp4" : ".jpg")}")'
