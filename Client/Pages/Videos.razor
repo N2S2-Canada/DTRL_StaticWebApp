@@ -19,7 +19,7 @@ else if (videos.Count == 0)
 }
 else
 {
-    <!-- Filter toolbar (unchanged from your current version) -->
+    <!-- Filter toolbar -->
     <div class="container px-0 mb-3" style="position: relative; z-index:1;">
         <div class="d-flex flex-wrap align-items-center gap-2 filterbar @(selectedCategories.Count > 0 ? "has-active-filters" : null) mode-@filterMode.ToString().ToLowerInvariant()">
             <span class="text-body-secondary">Filter by category:</span>
@@ -71,11 +71,10 @@ else
         </div>
     </div>
 
-    <!-- Grid (unchanged except onclick now uses OpenModalAt(index)) -->
+    <!-- Grid -->
     <div style="position: relative; z-index:1;">
         @* Build the same order we’ll use for the modal carousel *@
         @{
-            // visibleItems is also updated in ApplyCategoryFilter(), but we compute here for inline index binding
             var orderedGroups = filteredVideos
             .Where(v => v.Categories != null && v.Categories.Any())
             .GroupBy(v => v.Categories.First())
@@ -97,11 +96,25 @@ else
 
                     <div class="col-sm-6 col-md-4 col-lg-3">
                         <div class="card h-100 shadow-sm card-hover-lift">
-
                             <div class="video-thumbnail-wrapper ratio ratio-16x9 rounded-top"
                                  role="button" tabindex="0"
                                  @onclick='() => OpenModalAt(idx)'
                                  @onkeydown='(KeyboardEventArgs e) => { if (e.Key == "Enter" || e.Key == " ") OpenModalAt(idx); }'>
+
+                                @* Download overlay (only when code supplied) *@
+                                @if (AllowDownload)
+                                {
+                                    <a class="thumb-action btn btn-sm btn-light border"
+                                       href="@item.Url"
+                                       download="@($"{item.Name}{(item.IsVideo ? ".mp4" : ".jpg")}")"
+                                       rel="noopener"
+                                       title="Download"
+                                       @onclick:stopPropagation="true"
+                                       @onkeydown:stopPropagation="true">
+                                        ↓
+                                    </a>
+                                }
+
                                 <img alt="@item.Name"
                                      class="media-photo"
                                      loading="lazy"
@@ -112,25 +125,12 @@ else
                                                         (min-width: 992px)  33vw,
                                                         (min-width: 576px)  50vw,
                                                         100vw" />
+
                                 @if (item.IsVideo)
                                 {
                                     <span class="play-icon">&#9658;</span>
                                 }
                             </div>
-
-                            <div class="card-body d-flex flex-column">
-                                <h5 class="card-title mb-2">@item.Name</h5>
-                                <div class="mb-2">
-                                    @if (item.Categories != null)
-                                    {
-                                        @foreach (var category in item.Categories)
-                                        {
-                                            <span class="badge @GetCategoryClasses(category) border border-dark rounded-pill me-1 category-badge">@category</span>
-                                        }
-                                    }
-                                </div>
-                            </div>
-
                         </div>
                     </div>
                 }
@@ -139,7 +139,7 @@ else
     </div>
 }
 
-<!-- Bootstrap Modal: now acts like a carousel -->
+<!-- Bootstrap Modal: acts like a carousel -->
 <div class="modal fade" tabindex="-1" id="mediaModal" aria-hidden="true" style="z-index:1050;">
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content">
@@ -147,55 +147,64 @@ else
                 <button type="button" class="btn-close" @onclick="CloseModalAsync" aria-label="Close"></button>
             </div>
 
-<div class="modal-body text-center position-relative" tabindex="0" @onkeydown="HandleModalKeys">
-    <!-- Prev / Next controls -->
-    <button type="button" class="carousel-nav prev" title="Previous (←)" @onclick="PrevItem" aria-label="Previous">‹</button>
-    <button type="button" class="carousel-nav next" title="Next (→)" @onclick="NextItem" aria-label="Next">›</button>
+            <div class="modal-body text-center position-relative" tabindex="0" @onkeydown="HandleModalKeys">
+                <!-- Prev / Next controls -->
+                <button type="button" class="carousel-nav prev" title="Previous (←)" @onclick="PrevItem" aria-label="Previous">‹</button>
+                <button type="button" class="carousel-nav next" title="Next (→)" @onclick="NextItem" aria-label="Next">›</button>
 
-    @if (currentItem != null)
-    {
-        @if (currentItem.IsVideo)
-        {
-            <video class="img-fluid"
-                   playsinline
-                   preload="metadata"
-                   controls
-                   @attributes="GetVideoAttributes()">
-                <source src="@currentItem.Url" type="video/mp4" />
-                Your browser does not support the video tag.
-            </video>
-        }
-        else
-        {
-            <img src="@currentItem.Url"
-                 alt="@currentItem.Name"
-                 class="img-fluid"
-                 draggable="false"
-                 @attributes="GetImageAttributes()" />
-        }
+                @* Modal download overlay (only when code supplied) *@
+                <div class="media-frame d-inline-block position-relative">
+                    @if (AllowDownload)
+                    {
+                        <a class="thumb-action btn btn-light border modal-dl" ...>↓</a>
+                    }
+                    <!-- image/video here -->
+                </div>
 
-        <!-- Caption / filename -->
-        <div class="mt-2 text-muted small">@currentItem.Name</div>
-        <div class="text-muted-50 small">@((currentIndex + 1)) of @visibleItems.Count</div>
+                @if (currentItem != null)
+                {
+                    <div class="media-frame d-inline-block position-relative">
+                        @* Download overlay (anchored to the media, only with code) *@
+                        @if (AllowDownload)
+                        {
+                            <a class="thumb-action btn btn-light border modal-dl"
+                               href="@currentItem.Url"
+                               download='@($"{currentItem.Name}{(currentItem.IsVideo ? ".mp4" : ".jpg")}")'
+                               rel="noopener"
+                               title="Download">
+                                ↓
+                            </a>
+                        }
 
-        @if (AllowDownload)
-        {
-            <!-- Explicit download action only when a customer code is present -->
-            <div class="mt-3">
-                <a class="btn btn-sm btn-outline-primary"
-                   href="@currentItem.Url"
-                   download="@($"{currentItem.Name}{(currentItem.IsVideo ? ".mp4" : ".jpg")}")"
-                   rel="noopener">
-                    Download
-                </a>
-            </div>
-        }
-    }
-</div>
-        </div>
-    </div>
-</div>
+                        @if (currentItem.IsVideo)
+                        {
+                            <video class="img-fluid"
+                                   playsinline
+                                   preload="metadata"
+                                   controls
+                                   @attributes="GetVideoAttributes()">
+                                <source src="@currentItem.Url" type="video/mp4" />
+                                Your browser does not support the video tag.
+                            </video>
+                        }
+                        else
+                        {
+                            <img src="@currentItem.Url"
+                                 alt="@currentItem.Name"
+                                 class="img-fluid"
+                                 draggable="false"
+                                 @attributes="GetImageAttributes()" />
+                        }
+                    </div>
 
+                    <!-- Caption / filename -->
+                    <div class="mt-2 text-muted small">@currentItem.Name</div>
+                    <div class="text-muted-50 small">@((currentIndex + 1)) of @visibleItems.Count</div>
+                }
+            </div> <!-- /.modal-body -->
+        </div> <!-- /.modal-content -->
+    </div> <!-- /.modal-dialog -->
+</div> <!-- /.modal -->
 @code {
     [Parameter]
     [SupplyParameterFromQuery(Name = "cust_code")]
@@ -217,7 +226,7 @@ else
     private SharedModels.Video? currentItem;
     private bool AllowDownload => !string.IsNullOrWhiteSpace(customerCode);
 
-    // Category filtering state (unchanged)
+    // Category filtering state
     private readonly HashSet<string> selectedCategories = new(StringComparer.OrdinalIgnoreCase);
     private List<string> allCategories = new();
 
@@ -234,7 +243,7 @@ else
     {
         var apiUrl = string.IsNullOrWhiteSpace(customerCode)
             ? "/api/videos"
-            : $"/api/videos?cust_code={Uri.EscapeDataString(customerCode ?? "")}";
+            : $"/api/videos?cust_code=" + Uri.EscapeDataString(customerCode ?? "");
 
         try
         {
@@ -252,7 +261,6 @@ else
                 .ToList();
 
             ReadStateFromUrl();
-
             ApplyCategoryFilter(); // also rebuilds visibleItems
         }
         catch
@@ -292,6 +300,7 @@ else
     {
         if (module != null)
             await module.InvokeVoidAsync("hideModal");
+
         currentIndex = -1;
         currentItem = null;
         modalIsVideo = false;
@@ -320,7 +329,7 @@ else
         else if (e.Key == "Escape") _ = CloseModalAsync();
     }
 
-    // --- Category badges mapping (unchanged) ---
+    // --- Category badges mapping ---
     private readonly Dictionary<string, string> CategoryClasses = new()
     {
         { "nature", "bg-primary text-white" },
@@ -346,7 +355,7 @@ else
         return CategoryClasses.TryGetValue(key, out var css) ? css : "bg-secondary text-white";
     }
 
-    // ---------- Filtering (unchanged logic, but rebuild visibleItems at the end) ----------
+    // ---------- Filtering ----------
     private void ToggleCategory(string cat)
     {
         if (selectedCategories.Contains(cat)) selectedCategories.Remove(cat);
@@ -395,7 +404,7 @@ else
             filteredVideos = videos.Where(predicate).ToList();
         }
 
-        // Rebuild the flattened list in the SAME order as the grid
+        // Flatten to the SAME order as the grid
         visibleItems = filteredVideos
             .Where(v => v.Categories != null && v.Categories.Any())
             .GroupBy(v => v.Categories.First())
@@ -403,7 +412,7 @@ else
             .SelectMany(g => g)
             .ToList();
 
-        // If modal is open, keep current index within bounds
+        // Keep modal index in bounds if open
         if (currentIndex >= 0 && visibleItems.Count > 0)
         {
             currentIndex = Math.Clamp(currentIndex, 0, visibleItems.Count - 1);
@@ -416,7 +425,7 @@ else
         }
     }
 
-    // ---------- URL state (unchanged from your version) ----------
+    // ---------- URL state ----------
     private void ReadStateFromUrl()
     {
         var uri = new Uri(Nav.Uri);
@@ -471,6 +480,7 @@ else
         return string.Join(", ", parts);
     }
 
+    // ---------- Modal attribute helpers (download gating) ----------
     private IReadOnlyDictionary<string, object?> GetVideoAttributes()
     {
         if (AllowDownload)

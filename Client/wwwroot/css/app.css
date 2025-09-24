@@ -754,4 +754,59 @@ html {
     .carousel-nav.next {
         right: .75rem;
     }
+/* Download chip on thumbnails (shown only when AllowDownload) */
+.thumb-action {
+    position: absolute;
+    top: .5rem;
+    right: .5rem;
+    z-index: 2;
+    padding: .25rem .5rem;
+    border-radius: .5rem;
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(2px);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    line-height: 1;
+}
+
+    .thumb-action:hover {
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+/* Fix: inside .ratio, don't stretch our download button */
+.ratio > .thumb-action {
+    position: absolute; /* keep it floating */
+    top: .5rem;
+    right: .5rem;
+    bottom: auto;
+    left: auto;
+    width: auto;
+    height: auto;
+    z-index: 2;
+}
+/* Make the media a positioning context for overlays */
+.media-frame {
+    position: relative; /* already set inline, here as a safety */
+    display: inline-block; /* shrink-wrap to media size */
+}
+
+    /* Modal download chip, anchored to the MEDIA (not whole modal) */
+    .media-frame .thumb-action.modal-dl {
+        position: absolute;
+        top: .75rem;
+        right: .75rem;
+        z-index: 6;
+        /* ~2x size vs. tile chip */
+        padding: .5rem .75rem;
+        font-size: 1.25rem;
+        line-height: 1;
+        border-radius: .6rem;
+        background: rgba(255,255,255,0.95);
+        backdrop-filter: blur(2px);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+    }
+
+        .media-frame .thumb-action.modal-dl:hover {
+            background: #fff;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.22);
+        }
 
