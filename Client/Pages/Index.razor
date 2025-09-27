@@ -66,9 +66,12 @@
     @* ------------ ONE BATCH CALL FOR ALL KEYS BELOW ------------ *@
     <CmsPreloadTxt Blocking="true"
                    Keys="@(new[] {
-                                      "AboutUs.Lead",
-                                      "ContactUs.Lead1", "ContactUs.Lead2",
-                                      "ContactUs.Email", "ContactUs.Phone"
+                                    "AboutUs.Lead", 
+                                    "AboutUs.Prop1.Title", "AboutUs.Prop1.Lead",
+                                    "AboutUs.Prop2.Title", "AboutUs.Prop2.Lead",
+                                    "AboutUs.Prop3.Title", "AboutUs.Prop3.Lead",
+                                    "ContactUs.Lead1", "ContactUs.Lead2",
+                                    "ContactUs.Email", "ContactUs.Phone"
                                   })"
                    Placeholder="<p class='text-center my-5'>Loading content…</p>">
 
@@ -94,8 +97,12 @@
                             <div class="about-chip">
                                 <div class="about-chip-icon" aria-hidden="true">🔧</div>
                                 <div>
-                                    <div class="about-chip-title">Industrial-grade results</div>
-                                    <div class="about-chip-text">Data you can build on—repeatable, documented, and auditable.</div>
+                                    <div class="about-chip-title">
+                                        <CmsText Key="AboutUs.Prop1.Title" Fallback="Have a project in mind or want to learn more about our services?" />
+                                    </div>
+                                    <div class="about-chip-text">
+                                        <CmsText Key="AboutUs.Prop1.Lead" Fallback="Have a project in mind or want to learn more about our services?" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -104,8 +111,12 @@
                             <div class="about-chip">
                                 <div class="about-chip-icon" aria-hidden="true">🛰️</div>
                                 <div>
-                                    <div class="about-chip-title">Modern sensors</div>
-                                    <div class="about-chip-text">High-res imagery, thermal, and multispectral options.</div>
+                                    <div class="about-chip-title">
+                                        <CmsText Key="AboutUs.Prop2.Title" Fallback="Have a project in mind or want to learn more about our services?" />
+                                    </div>
+                                    <div class="about-chip-text">
+                                        <CmsText Key="AboutUs.Prop2.Lead" Fallback="Have a project in mind or want to learn more about our services?" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -114,8 +125,12 @@
                             <div class="about-chip">
                                 <div class="about-chip-icon" aria-hidden="true">🛡️</div>
                                 <div>
-                                    <div class="about-chip-title">Safety first</div>
-                                    <div class="about-chip-text">Licensed pilots, controlled workflows, and compliant ops.</div>
+                                    <div class="about-chip-title">
+                                        <CmsText Key="AboutUs.Prop3.Title" Fallback="Have a project in mind or want to learn more about our services?" />
+                                    </div>
+                                    <div class="about-chip-text">
+                                        <CmsText Key="AboutUs.Prop3.Lead" Fallback="Have a project in mind or want to learn more about our services?" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
