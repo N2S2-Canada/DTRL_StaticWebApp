@@ -77,8 +77,9 @@ else
         @{
             var orderedGroups = filteredVideos
             .Where(v => v.Categories != null && v.Categories.Any())
-            .GroupBy(v => v.Categories.First())
-            .OrderBy(g => g.Key)
+            .GroupBy(v => PrimaryCategory(v), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => string.Equals(g.Key, "featured", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
             var runningIndex = 0;
@@ -88,7 +89,7 @@ else
         {
             if (!group.Any()) { continue; }
 
-            <h4 class="mt-4">@group.Key</h4>
+            <h4 class="mt-4">@((string.Equals(group.Key, "featured", StringComparison.OrdinalIgnoreCase) ? "Featured" : group.Key))</h4>
             <div class="row g-3">
                 @foreach (var item in group)
                 {
@@ -258,13 +259,15 @@ else
             pageTitle = payload?.Title;
             videos = payload?.Items ?? new List<SharedModels.Video>();
 
+            // Build category list (distinct, keep original casing), "featured" first, others A–Z
             allCategories = videos
                 .SelectMany(v => v.Categories ?? Array.Empty<string>())
                 .Select(c => c?.Trim())
                 .Where(c => !string.IsNullOrWhiteSpace(c))
-                .Cast<string>()
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(c => c!, StringComparer.OrdinalIgnoreCase)   // distinct, case-insensitive
+                .Select(g => g.First()!)                               // keep original casing of first occurrence
+                .OrderBy(c => !string.Equals(c, "featured", StringComparison.OrdinalIgnoreCase)) // featured first
+                .ThenBy(c => c, StringComparer.OrdinalIgnoreCase)      // then A–Z
                 .ToList();
 
             ReadStateFromUrl();
@@ -342,7 +345,7 @@ else
         { "nature", "bg-primary text-white" },
         { "agriculture", "bg-success text-dark" },
         { "industrial", "bg-warning text-dark" },
-        { "real estate", "bg-danger text-white" },
+        { "real estate", "bg-danger-bg-subtle text-white" },
         { "wedding", "bg-info text-dark" },
         { "social", "bg-secondary text-white" },
         { "mapping", "bg-success-subtle text-dark" },
@@ -351,7 +354,8 @@ else
         { "photography", "bg-info-subtle text-dark" },
         { "multi-spectra", "bg-dark text-white" },
         { "event", "bg-danger-subtle text-dark" },
-        { "community", "bg-light text-dark" }
+        { "community", "bg-light text-dark" },
+        { "featured", "bg-danger text-white "}
     };
 
     private string GetCategoryClasses(string category)
@@ -370,7 +374,15 @@ else
         ApplyCategoryFilter();
         UpdateUrlFromState();
     }
+    private static bool HasCategory(SharedModels.Video v, string cat) =>
+    v.Categories != null && v.Categories.Any(c => string.Equals(c?.Trim(), cat, StringComparison.OrdinalIgnoreCase));
 
+    private static string PrimaryCategory(SharedModels.Video v)
+    {
+        if (HasCategory(v, "featured")) return "featured";
+        var first = v.Categories?.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c))?.Trim();
+        return first ?? "(uncategorized)";
+    }
     private void SetMode(FilterMode mode)
     {
         filterMode = mode;
@@ -414,8 +426,9 @@ else
         // Flatten to the SAME order as the grid
         visibleItems = filteredVideos
             .Where(v => v.Categories != null && v.Categories.Any())
-            .GroupBy(v => v.Categories.First())
-            .OrderBy(g => g.Key)
+            .GroupBy(v => PrimaryCategory(v), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => string.Equals(g.Key, "featured", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
             .SelectMany(g => g)
             .ToList();
 
