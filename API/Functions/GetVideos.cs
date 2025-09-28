@@ -29,16 +29,38 @@ namespace API.Functions
         {
             if (string.IsNullOrWhiteSpace(rawName)) return string.Empty;
 
-            var withSpaces = rawName.Replace("_", " ").Replace("-", " ");
-            withSpaces = Regex.Replace(withSpaces, @"\b(final|draft|copy|edit|v\d+|\d{2,})\b", "", RegexOptions.IgnoreCase);
-            withSpaces = Regex.Replace(withSpaces, @"\s+", " ").Trim();
+            // Normalize separators to spaces
+            var s = rawName.Replace("_", " ").Replace("-", " ");
 
-            return Regex.Replace(withSpaces, @"\b\w+\b", m =>
+            // Split into tokens and remove only *explicit* noise tokens
+            // e.g., final, draft, copy, edit, v1, v12 — but keep numbers like 10, 01, 2024, etc.
+            var tokens = Regex.Split(s, @"\s+")
+                              .Where(t => !string.IsNullOrWhiteSpace(t))
+                              .ToList();
+
+            var cleaned = tokens.Where(t =>
+            {
+                var low = t.ToLowerInvariant().Trim();
+                if (low is "final" or "draft" or "copy" or "edit") return false;
+                if (Regex.IsMatch(low, @"^v\d+$", RegexOptions.IgnoreCase)) return false; // v1, v12
+                return true;
+            });
+
+            s = string.Join(" ", cleaned);
+
+            // Collapse leftover extra spaces
+            s = Regex.Replace(s, @"\s+", " ").Trim();
+
+            // Title-case words, but preserve all-caps (acronyms) and pure numbers exactly (incl. leading zeros)
+            s = Regex.Replace(s, @"\b\w+\b", m =>
             {
                 var word = m.Value;
-                if (word.ToUpperInvariant() == word) return word; // preserve acronyms
-                return char.ToUpper(word[0]) + word[1..].ToLower();
+                if (Regex.IsMatch(word, @"^\d+$")) return word;                // keep "01" exactly
+                if (word.ToUpperInvariant() == word) return word;              // keep "UAV", "RGB"
+                return char.ToUpperInvariant(word[0]) + word[1..].ToLower();   // Title case
             });
+
+            return s;
         }
 
         private sealed class VideosResponse
