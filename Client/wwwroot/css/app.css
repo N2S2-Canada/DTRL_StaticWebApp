@@ -759,3 +759,14 @@ html {
 .modal {
     isolation: isolate;
 }
+/* Purplish background utilities */
+.bg-purpleish {
+    --bs-bg-opacity: 1;
+    background-color: rgba(124, 58, 237, var(--bs-bg-opacity)) !important; /* #7c3aed */
+}
+
+.bg-purpleish-subtle {
+    /* A softer version for "subtle" look */
+    background-color: color-mix(in srgb, #7c3aed 18%, transparent);
+}
+
