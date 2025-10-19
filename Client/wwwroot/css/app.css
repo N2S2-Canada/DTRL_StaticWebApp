@@ -386,8 +386,9 @@ html {
 
 .hero-section {
     position: relative;
-    height: calc(100vh - 56px);
-    overflow: hidden;
+    width: 100%;
+    max-width: 100vw; /* prevents overflow */
+    overflow-x: hidden; /* hide horizontal scroll */
 }
 
 .parallax-bg {
@@ -415,10 +416,12 @@ html {
 }
 
 .hero-section .container {
-    position: relative;
-    padding-top: 80px; /* spacing below navbar for logo */
-    padding-bottom: 20px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    max-width: 100%;
+    overflow: hidden;
 }
+
 /* Logos */
 .hero-logo {
     height: 100px;
@@ -430,16 +433,12 @@ html {
     width: auto;
 }
 /* Headline & subtitle */
-.hero-headline {
-    font-size: 3rem;
-    font-weight: bold;
-    color: white;
+.hero-headline,
+.hero-subtitle {
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
 }
 
-.hero-subtitle {
-    font-size: 1.25rem;
-    color: white;
-}
 /* Contact button */
 .hero-cta a {
     color: white;
@@ -500,16 +499,19 @@ html {
 }
 
 @media (max-width: 576px) {
-    .hero-logo {
-        height: 60px;
+    .hero-section {
+        height: auto; /* allow content to dictate height */
+        padding-top: 60px;
+        padding-bottom: 40px;
     }
 
-    .hero-letterhead {
-        height: 25px;
-    }
+        .hero-section .container {
+            padding-top: 60px;
+        }
 
     .hero-headline {
-        font-size: 2rem;
+        font-size: 1.8rem;
+        line-height: 1.2;
     }
 
     .hero-subtitle {
