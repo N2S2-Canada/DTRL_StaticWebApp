@@ -433,8 +433,12 @@ html {
     gap: 0.75rem;
     margin-left: auto;
     margin-right: auto;
-}
-
+    }
+    /* Keep the two logos from collectively exceeding the viewport width */
+    .hero-top img {
+        max-width: 100%;
+        height: auto;
+    }
 .hero-logo,
 .hero-letterhead {
     display: block;
@@ -547,7 +551,10 @@ html {
         padding-right: 1rem;
         max-width: 100vw;
     }
-
+        /* When the logos try to sit on one line, cap each to ~48% so the pair fits */
+        .hero-top img {
+            flex: 0 1 48%;
+        }
     .hero-headline {
         font-size: 1.8rem;
         line-height: 1.2;
